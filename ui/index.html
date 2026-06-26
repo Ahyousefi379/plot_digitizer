@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plot Digitizer</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+</head>
+<body>
+    <div id="statusBar">No image loaded</div>
+    <div id="canvasContainer">
+        <canvas id="plotCanvas"></canvas>
+        <canvas id="magnifier" width="150" height="150"></canvas>
+        <div id="calibForm" style="display:none;">
+            <h3>Enter Axis Values</h3>
+            <div class="form-row">
+                <label>X_min value:</label>
+                <input type="text" id="formXmin" />
+            </div>
+            <div class="form-row">
+                <label>X_max value:</label>
+                <input type="text" id="formXmax" />
+            </div>
+            <div class="form-row">
+                <label>Y_min value:</label>
+                <input type="text" id="formYmin" />
+            </div>
+            <div class="form-row">
+                <label>Y_max value:</label>
+                <input type="text" id="formYmax" />
+            </div>
+            <div id="formError" style="color:red; display:none; margin-bottom:8px;"></div>
+            <button id="confirmCalibBtn">Confirm Calibration</button>
+        </div>
+        <button id="resetPointsBtn" style="display:none;">Reset Points</button>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

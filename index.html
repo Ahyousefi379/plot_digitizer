@@ -1,0 +1,1607 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plot Digitizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+        #app { display: flex; height: 100vh; background: #0f172a; }
+        
+        #leftPane {
+            width: 35%; min-width: 280px; display: flex; flex-direction: column;
+            border-right: 1px solid #334155; background: #1e293b;
+        }
+        #centrePane {
+            flex: 1; display: flex; flex-direction: column; position: relative;
+            background: #0f172a;
+        }
+        #rightPane {
+            width: 240px; min-width: 200px; display: flex; flex-direction: column;
+            border-left: 1px solid #334155; background: #1e293b; padding: 12px;
+            gap: 6px; overflow-y: auto;
+        }
+
+        .resize-handle {
+            width: 5px; cursor: col-resize; background: #334155;
+            transition: background 0.15s;
+        }
+        .resize-handle:hover, .resize-handle.active { background: #60a5fa; }
+
+        /* ── Left toolbar ──────────────────────────────── */
+        #leftToolbar {
+            display: flex; gap: 4px; padding: 8px; flex-wrap: wrap; align-items: center;
+            border-bottom: 1px solid #334155; background: #1e293b;
+        }
+        #leftToolbar button, .tool-btn {
+            padding: 6px 10px; font-size: 12px; border-radius: 4px; border: 1px solid #475569;
+            background: #334155; color: #e2e8f0; cursor: pointer; white-space: nowrap;
+            transition: all 0.15s; font-weight: 500;
+        }
+        #leftToolbar button:hover, .tool-btn:hover { background: #475569; }
+        #leftToolbar button:disabled, .tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        #leftToolbar button.active { background: #dc2626; border-color: #ef4444; color: #fff; font-weight: 700; }
+        #leftToolbar button.primary { background: #3b82f6; border-color: #60a5fa; }
+        #leftToolbar button.primary:hover { background: #2563eb; }
+        .toolbar-sep { width: 1px; height: 24px; background: #475569; margin: 0 4px; }
+
+        /* ── PDF Viewer ──────────────────────────────── */
+        #pdfViewer {
+            flex: 1; overflow: auto; display: flex; background: #0f172a;
+            position: relative; padding: 12px;
+        }
+        #pdfCanvasWrap {
+            margin: auto; transform-origin: top center;
+        }
+        #pdfCanvas {
+            background: #fff; box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+            display: block;
+        }
+        #pageIndicator {
+            text-align: center; padding: 6px 0; color: #94a3b8; font-size: 12px;
+            border-top: 1px solid #334155; background: #1e293b; font-weight: 500;
+        }
+        #dropOverlay {
+            position: absolute; inset: 0; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; color: #94a3b8; gap: 12px;
+            pointer-events: none; padding: 20px; text-align: center;
+        }
+        #dropOverlay.hidden { display: none; }
+        #dropOverlay.drag-over { background: rgba(96,165,250,0.1); }
+        #dropOverlay svg { width: 56px; height: 56px; opacity: 0.3; }
+
+        #snipRect {
+            position: absolute; border: 2px dashed #60a5fa; background: rgba(96,165,250,0.15);
+            display: none; pointer-events: none; z-index: 10;
+        }
+
+        /* ── Centre pane ─────────────────────────────── */
+        #statusBar {
+            height: 32px; line-height: 32px; padding: 0 14px; font-size: 13px;
+            background: #1e293b; color: #94a3b8; border-bottom: 1px solid #334155;
+            user-select: none; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center;
+        }
+        #modeIndicator {
+            font-size: 11px; padding: 2px 8px; border-radius: 3px; font-weight: 600;
+        }
+        #modeIndicator.calibration { background: #3b82f6; color: #fff; }
+        #modeIndicator.digitization { background: #22c55e; color: #fff; }
+        #modeIndicator.edit { background: #f59e0b; color: #1e293b; }
+        
+        #canvasWrap {
+            flex: 1; position: relative; overflow: hidden; cursor: crosshair;
+        }
+        #plotCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+        #magnifier {
+            position: fixed; width: 150px; height: 150px; border: 2px solid #60a5fa;
+            border-radius: 4px; pointer-events: none; z-index: 500; display: none;
+            background: #000; image-rendering: pixelated;
+        }
+
+        /* ── Calibration panel (collapsible) ─────────── */
+        #calibPanel {
+            position: absolute; top: 10px; left: 10px; background: rgba(30,41,59,0.95);
+            border: 1px solid #475569; border-radius: 6px; padding: 10px; z-index: 250;
+            min-width: 200px; display: none;
+        }
+        #calibPanel h4 { color: #60a5fa; font-size: 12px; margin-bottom: 8px; }
+        .calib-row { display: flex; align-items: center; margin-bottom: 6px; gap: 6px; }
+        .calib-row label { flex: 0 0 50px; font-size: 11px; color: #94a3b8; }
+        .calib-row input {
+            flex: 1; padding: 4px 6px; background: #0f172a; border: 1px solid #475569;
+            border-radius: 3px; color: #e2e8f0; font-size: 11px; outline: none; width: 60px;
+        }
+        .calib-row input:focus { border-color: #60a5fa; }
+        #recalibBtn {
+            width: 100%; padding: 5px; background: #3b82f6; color: #fff; border: none;
+            border-radius: 3px; font-size: 11px; font-weight: 600; cursor: pointer; margin-top: 4px;
+        }
+        #recalibBtn:hover { background: #2563eb; }
+
+        /* ── Calibration form overlay ────────────────── */
+        #calibForm {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            background: #1e293b; border: 1px solid #475569; border-radius: 8px;
+            padding: 20px; z-index: 300; min-width: 300px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.6); display: none;
+        }
+        #calibForm h3 { color: #60a5fa; font-size: 14px; margin-bottom: 14px; }
+        .cf-row { display: flex; align-items: center; margin-bottom: 10px; gap: 10px; }
+        .cf-row label { flex: 0 0 90px; font-size: 13px; color: #cbd5e1; }
+        .cf-row input {
+            flex: 1; padding: 6px 10px; background: #0f172a; border: 1px solid #475569;
+            border-radius: 4px; color: #e2e8f0; font-size: 13px; outline: none;
+        }
+        .cf-row input:focus { border-color: #60a5fa; }
+        #calibFormError { color: #f87171; font-size: 12px; display: none; margin-bottom: 8px; }
+        #confirmCalibBtn {
+            width: 100%; padding: 9px 0; background: #3b82f6; color: #fff; border: none;
+            border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer;
+        }
+        #confirmCalibBtn:hover { background: #2563eb; }
+
+        /* ── Digitizer buttons ───────────────────────── */
+        .digi-btn {
+            position: absolute; padding: 6px 12px;
+            border: none; border-radius: 4px;
+            font-size: 11px; font-weight: 600; cursor: pointer; z-index: 200;
+        }
+        #resetPtsBtn { bottom: 10px; right: 10px; background: #f59e0b; color: #1e293b; display: none; }
+        #resetPtsBtn:hover { background: #d97706; }
+        #closeDigitizerBtn { bottom: 10px; right: 100px; background: #ef4444; color: #fff; display: none; }
+        #closeDigitizerBtn:hover { background: #dc2626; }
+        #editModeBtn { bottom: 10px; right: 185px; background: #8b5cf6; color: #fff; display: none; }
+        #editModeBtn:hover { background: #7c3aed; }
+        #editModeBtn.active { background: #f59e0b; color: #1e293b; }
+
+        #coordReadout {
+            position: absolute; bottom: 10px; left: 10px; padding: 4px 12px;
+            background: rgba(15,23,42,0.9); color: #94a3b8; font-size: 11px;
+            border-radius: 4px; z-index: 200; font-variant-numeric: tabular-nums; display: none;
+        }
+
+        #emptyState {
+            position: absolute; inset: 0; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; color: #475569;
+            text-align: center; padding: 40px; gap: 8px;
+        }
+        #emptyState.hidden { display: none; }
+        #emptyState svg { width: 64px; height: 64px; opacity: 0.3; margin-bottom: 8px; }
+
+        /* ── Right pane ──────────────────────────────── */
+        #rightPane label { color: #94a3b8; font-size: 11px; margin-bottom: 2px; }
+        #rightPane .section-title { 
+            color: #60a5fa; font-size: 11px; font-weight: 700; 
+            text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;
+        }
+        #rightPane .filename {
+            font-weight: 700; color: #e2e8f0; font-size: 12px;
+            word-break: break-all; min-height: 16px;
+        }
+        #rightPane input[type="text"] {
+            width: 100%; padding: 5px 8px; background: #0f172a; border: 1px solid #475569;
+            border-radius: 4px; color: #e2e8f0; font-size: 12px; outline: none;
+        }
+        #rightPane input[type="text"]:focus { border-color: #60a5fa; }
+        #rightPane select {
+            width: 100%; padding: 5px 8px; background: #0f172a; border: 1px solid #475569;
+            border-radius: 4px; color: #e2e8f0; font-size: 12px; outline: none; cursor: pointer;
+        }
+        .btn-sm {
+            width: 100%; padding: 6px 0; border: none; border-radius: 4px;
+            font-size: 12px; font-weight: 600; cursor: pointer; color: #fff;
+        }
+        .btn-row { display: flex; gap: 4px; }
+        .btn-row .btn-sm { flex: 1; }
+        .btn-blue { background: #3b82f6; }
+        .btn-blue:hover { background: #2563eb; }
+        .btn-green { background: #22c55e; }
+        .btn-green:hover { background: #16a34a; }
+        .btn-red { background: #ef4444; }
+        .btn-red:hover { background: #dc2626; }
+        .btn-amber { background: #f59e0b; color: #1e293b; }
+        .btn-amber:hover { background: #d97706; }
+        .btn-purple { background: #8b5cf6; }
+        .btn-purple:hover { background: #7c3aed; }
+
+        #rightPane .checkbox-row {
+            display: flex; align-items: center; gap: 8px;
+            color: #cbd5e1; font-size: 12px; margin-top: 2px;
+        }
+        #rightPane .checkbox-row input[type="checkbox"] {
+            width: auto;
+        }
+
+        /* ── Feature/system list ─────────────────────── */
+        #systemList, #featureList {
+            max-height: 100px; overflow-y: auto; border: 1px solid #334155;
+            border-radius: 4px; background: #0f172a;
+        }
+        .feature-item {
+            display: flex; align-items: center; padding: 4px 6px; gap: 4px;
+            border-bottom: 1px solid #1e293b; font-size: 11px;
+        }
+        .feature-item:last-child { border-bottom: none; }
+        .feature-item span { flex: 1; color: #cbd5e1; }
+        .feature-item button {
+            padding: 2px 5px; font-size: 10px; border: none; border-radius: 2px;
+            cursor: pointer; background: #475569; color: #e2e8f0;
+        }
+        .feature-item button:hover { background: #64748b; }
+        .feature-item button.del { background: #ef4444; }
+        .feature-item button.del:hover { background: #dc2626; }
+        .feature-item.saved span::after { content: " ✓"; color: #22c55e; }
+
+        /* ── Data table ──────────────────────────────── */
+        #dataTableWrap {
+            flex: 1; overflow-y: auto; border: 1px solid #334155;
+            border-radius: 4px; background: #0f172a; min-height: 80px;
+        }
+        #dataTable { width: 100%; border-collapse: collapse; font-size: 10px; }
+        #dataTable th {
+            position: sticky; top: 0; background: #1e293b; color: #94a3b8;
+            padding: 4px 4px; text-align: left; border-bottom: 1px solid #334155;
+        }
+        #dataTable td {
+            padding: 3px 4px; color: #cbd5e1; border-bottom: 1px solid #1e293b;
+            font-variant-numeric: tabular-nums;
+        }
+        #dataTable tr:hover td { background: #1e293b; }
+        #dataTable tr.selected td { background: #3b82f6; color: #fff; }
+        #dataTable .del-btn {
+            padding: 1px 4px; font-size: 9px; background: #ef4444; color: #fff;
+            border: none; border-radius: 2px; cursor: pointer;
+        }
+        #dataTable .del-btn:hover { background: #dc2626; }
+
+        /* ── Saved features indicator ────────────────── */
+        #savedIndicator {
+            background: #0f172a; border: 1px solid #334155; border-radius: 4px;
+            padding: 6px 8px; font-size: 11px; color: #94a3b8;
+        }
+        #savedIndicator .count { color: #22c55e; font-weight: 700; }
+
+        /* ── Toast ───────────────────────────────────── */
+        #toast {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+            padding: 10px 28px; border-radius: 6px; font-size: 13px; font-weight: 600;
+            z-index: 9999; display: none; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        #toast.success { background: #22c55e; color: #fff; }
+        #toast.error { background: #ef4444; color: #fff; }
+        #toast.warning { background: #f59e0b; color: #1e293b; }
+
+        /* ── Context menu ────────────────────────────── */
+        #contextMenu {
+            position: fixed; background: #1e293b; border: 1px solid #475569;
+            border-radius: 4px; padding: 4px 0; z-index: 600; display: none;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4); min-width: 120px;
+        }
+        #contextMenu button {
+            display: block; width: 100%; padding: 6px 12px; text-align: left;
+            background: none; border: none; color: #e2e8f0; font-size: 12px;
+            cursor: pointer;
+        }
+        #contextMenu button:hover { background: #334155; }
+        #contextMenu button.danger { color: #f87171; }
+        #contextMenu button.danger:hover { background: #7f1d1d; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <!-- ════════ LEFT PANE: PDF Navigator ════════ -->
+    <div id="leftPane">
+        <div id="leftToolbar">
+            <button id="loadPdfBtn" class="primary">Load PDF</button>
+            <button id="prevPageBtn" disabled>◀</button>
+            <button id="nextPageBtn" disabled>▶</button>
+            <span class="toolbar-sep"></span>
+            <button id="zoomOutBtn" disabled title="Zoom Out">−</button>
+            <button id="zoomInBtn" disabled title="Zoom In">+</button>
+            <button id="zoomFitBtn" disabled title="Fit Width">Fit</button>
+            <span class="toolbar-sep"></span>
+            <button id="snipBtn" disabled>✂ Snip</button>
+        </div>
+        <div id="pdfViewer">
+            <div id="pdfCanvasWrap">
+                <canvas id="pdfCanvas"></canvas>
+            </div>
+            <div id="snipRect"></div>
+            <div id="dropOverlay">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+                </svg>
+                <span style="font-size:15px; font-weight:600;">Load a PDF to begin</span>
+                <span style="font-size:12px; opacity:0.7;">Drop PDF here or click <b>Load PDF</b></span>
+            </div>
+        </div>
+        <div id="pageIndicator">No PDF loaded</div>
+        <input type="file" id="fileInput" accept="application/pdf" style="display:none;" />
+    </div>
+
+    <div class="resize-handle" id="resizeLeft"></div>
+
+    <!-- ════════ CENTRE PANE: Digitizer Canvas ════════ -->
+    <div id="centrePane">
+        <div id="statusBar">
+            <span id="statusText">Snip a plot region from the PDF to begin digitizing</span>
+            <span id="modeIndicator"></span>
+        </div>
+        <div id="canvasWrap">
+            <canvas id="plotCanvas"></canvas>
+            <canvas id="magnifier" width="150" height="150"></canvas>
+            
+            <div id="emptyState">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6"/>
+                </svg>
+                <span style="font-size:14px;">No plot selected</span>
+                <span style="font-size:12px; opacity:0.6;">Use <b>Snip</b> on the PDF to select a plot region</span>
+            </div>
+
+            <!-- Calibration edit panel -->
+            <div id="calibPanel">
+                <h4>Axis Calibration</h4>
+                <div class="calib-row"><label>X min:</label><input type="text" id="calibXmin" /></div>
+                <div class="calib-row"><label>X max:</label><input type="text" id="calibXmax" /></div>
+                <div class="calib-row"><label>Y min:</label><input type="text" id="calibYmin" /></div>
+                <div class="calib-row"><label>Y max:</label><input type="text" id="calibYmax" /></div>
+                <button id="recalibBtn">Update Calibration</button>
+            </div>
+
+            <!-- Initial calibration form -->
+            <div id="calibForm">
+                <h3>Enter Real-World Axis Values</h3>
+                <div class="cf-row"><label>X_min value:</label><input type="text" id="fXmin" /></div>
+                <div class="cf-row"><label>X_max value:</label><input type="text" id="fXmax" /></div>
+                <div class="cf-row"><label>Y_min value:</label><input type="text" id="fYmin" /></div>
+                <div class="cf-row"><label>Y_max value:</label><input type="text" id="fYmax" /></div>
+                <div id="calibFormError"></div>
+                <button id="confirmCalibBtn">Confirm Calibration</button>
+            </div>
+
+            <button id="editModeBtn" class="digi-btn">✋ Edit Points</button>
+            <button id="closeDigitizerBtn" class="digi-btn">✕ Close</button>
+            <button id="resetPtsBtn" class="digi-btn">Reset All</button>
+            <div id="coordReadout"></div>
+        </div>
+    </div>
+
+    <div class="resize-handle" id="resizeRight"></div>
+
+    <!-- ════════ RIGHT PANE: Features & Data ════════ -->
+    <div id="rightPane">
+        <label>PDF file</label>
+        <div class="filename" id="filenameLabel">No PDF loaded</div>
+
+        <hr style="border-color:#334155; margin: 4px 0;">
+
+        <div class="section-title">Systems</div>
+        <div style="display:flex; gap:4px;">
+            <input type="text" id="systemInput" placeholder="New system name" style="flex:1;" />
+            <button class="btn-sm btn-blue" id="addSystemBtn" style="width:auto; padding:0 10px;">+</button>
+        </div>
+
+        <div id="systemList"></div>
+
+        <label style="margin-top:4px;">Active system</label>
+        <select id="systemSelect"><option value="">— select —</option></select>
+
+        <hr style="border-color:#334155; margin: 6px 0;">
+
+        <div class="section-title">Features</div>
+        <div style="display:flex; gap:4px;">
+            <input type="text" id="featureInput" placeholder="New feature name" style="flex:1;" />
+            <button class="btn-sm btn-blue" id="addFeatureBtn" style="width:auto; padding:0 10px;">+</button>
+        </div>
+        
+        <div id="featureList"></div>
+        
+        <label style="margin-top:4px;">Active feature</label>
+        <select id="featureSelect"><option value="">— select —</option></select>
+
+        <label style="margin-top:4px;">X label</label>
+        <input type="text" id="xLabelInput" placeholder="e.g. Time (h)" />
+
+        <label>Y label</label>
+        <input type="text" id="yLabelInput" placeholder="e.g. Viability (%)" />
+
+        <label>Point size</label>
+        <input type="range" id="pointSizeInput" min="2" max="12" step="1" value="5" />
+
+        <label class="checkbox-row"><input type="checkbox" id="toggleMagnifier" checked /> Show magnifier</label>
+
+        <hr style="border-color:#334155; margin: 6px 0;">
+
+        <div class="section-title">Current Points</div>
+        <div id="dataTableWrap">
+            <table id="dataTable">
+                <thead><tr><th>#</th><th>X</th><th>Y</th><th></th></tr></thead>
+                <tbody id="dataBody"></tbody>
+            </table>
+        </div>
+
+        <div id="savedIndicator">
+            This PDF saved: <span class="count" id="savedCount">0</span>
+            &nbsp;•&nbsp; Master: <span class="count" id="masterCount">0</span> PDFs
+        </div>
+
+        <button class="btn-sm btn-purple" id="saveFeatureBtn">💾 Save Feature Data</button>
+        <button class="btn-sm btn-green" id="saveExcelBtn">📊 Export PDF Excel</button>
+    </div>
+</div>
+
+<!-- Context menu for points -->
+<div id="contextMenu">
+    <button id="ctxMovePoint">Move Point</button>
+    <button id="ctxDeletePoint" class="danger">Delete Point</button>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+//  PLOT DIGITIZER — Full Featured Version
+// ═══════════════════════════════════════════════════════════════════════
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ── State ──────────────────────────────────────────────────────────────
+let pdfDoc = null;
+let currentPage = 1;
+let totalPages = 0;
+let pdfFilename = "";
+let pdfZoom = 1.0;
+const PDF_BASE_SCALE = 1.5;
+
+let appState = "idle";  // idle | calibration | calibration_form | digitization | edit
+let sourceImage = null;
+let calibClicks = [];
+let calib = { a:0, b:0, c:0, d:0, valid:false };
+let calibValues = { xmin:0, xmax:1, ymin:0, ymax:1 };
+let points = [];
+const T = { scale:1, offsetX:0, offsetY:0 };
+
+let snipMode = false;
+let snipStart = null;
+let snipDragging = false;
+let isPanning = false;
+let panStart = {x:0,y:0};
+let panOffStart = {x:0,y:0};
+
+// Edit mode
+let editMode = false;
+let selectedPointIndex = -1;
+let draggingPoint = false;
+
+// Feature management
+let features = JSON.parse(localStorage.getItem('plotDigitizerFeatures') || '[]');
+let featureMetadata = JSON.parse(localStorage.getItem('plotDigitizerFeatureMetadata') || '{}');
+let systems = [];
+let tempSavedData = {};  // { systemName: { featureName: { points } } } — for current PDF only
+let magnifierEnabled = true;
+let currentEditingKey = "";
+let pointRadius = 5;
+const systemColors = ["#f87171", "#60a5fa", "#34d399", "#fbbf24", "#c084fc", "#fb7185", "#2dd4bf", "#a3e635"];
+
+// ── DOM refs ───────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const canvas = $("plotCanvas");
+const ctx = canvas.getContext("2d");
+const magnifier = $("magnifier");
+const magCtx = magnifier.getContext("2d");
+const statusText = $("statusText");
+const modeIndicator = $("modeIndicator");
+const calibForm = $("calibForm");
+const calibError = $("calibFormError");
+const calibPanel = $("calibPanel");
+const confirmBtn = $("confirmCalibBtn");
+const recalibBtn = $("recalibBtn");
+const resetPtsBtn = $("resetPtsBtn");
+const closeDigitizerBtn = $("closeDigitizerBtn");
+const editModeBtn = $("editModeBtn");
+const coordReadout = $("coordReadout");
+const emptyState = $("emptyState");
+const pdfCanvas = $("pdfCanvas");
+const pdfCtx = pdfCanvas.getContext("2d");
+const pdfCanvasWrap = $("pdfCanvasWrap");
+const pdfViewer = $("pdfViewer");
+const dropOverlay = $("dropOverlay");
+const snipRect = $("snipRect");
+const pageIndicator = $("pageIndicator");
+const fileInput = $("fileInput");
+const loadPdfBtn = $("loadPdfBtn");
+const prevPageBtn = $("prevPageBtn");
+const nextPageBtn = $("nextPageBtn");
+const zoomInBtn = $("zoomInBtn");
+const zoomOutBtn = $("zoomOutBtn");
+const zoomFitBtn = $("zoomFitBtn");
+const snipBtn = $("snipBtn");
+const systemInput = $("systemInput");
+const addSystemBtn = $("addSystemBtn");
+const systemList = $("systemList");
+const systemSelect = $("systemSelect");
+const featureInput = $("featureInput");
+const featureSelect = $("featureSelect");
+const featureList = $("featureList");
+const addFeatureBtn = $("addFeatureBtn");
+const xLabelInput = $("xLabelInput");
+const yLabelInput = $("yLabelInput");
+const toggleMagnifier = $("toggleMagnifier");
+const pointSizeInput = $("pointSizeInput");
+const saveFeatureBtn = $("saveFeatureBtn");
+const saveExcelBtn = $("saveExcelBtn");
+const filenameLabel = $("filenameLabel");
+const dataBody = $("dataBody");
+const savedCount = $("savedCount");
+const masterCount = $("masterCount");
+const contextMenu = $("contextMenu");
+
+// ── Toast ──────────────────────────────────────────────────────────────
+function toast(msg, type="success", duration=2500) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.className = type;
+    t.style.display = "block";
+    t.style.opacity = "1";
+    clearTimeout(t._tid);
+    t._tid = setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.style.display = "none", 300); }, duration);
+}
+
+// ── Save features to localStorage ──────────────────────────────────────
+function saveFeaturesToStorage() {
+    localStorage.setItem('plotDigitizerFeatures', JSON.stringify(features));
+}
+
+function saveFeatureMetadataToStorage() {
+    localStorage.setItem('plotDigitizerFeatureMetadata', JSON.stringify(featureMetadata));
+}
+
+function getActiveSystemData() {
+    const systemName = systemSelect.value;
+    if (!systemName) return null;
+    if (!tempSavedData[systemName]) tempSavedData[systemName] = {};
+    return tempSavedData[systemName];
+}
+
+function getSystemColor(systemName) {
+    const idx = systems.indexOf(systemName);
+    return systemColors[idx >= 0 ? idx % systemColors.length : 0];
+}
+
+function renderSystemList() {
+    systemList.innerHTML = "";
+    systems.forEach((name, i) => {
+        const div = document.createElement("div");
+        const savedFeatures = Object.keys(tempSavedData[name] || {}).length;
+        div.className = "feature-item" + (savedFeatures > 0 ? " saved" : "");
+        div.innerHTML = `
+            <span>${name}${savedFeatures > 0 ? ` (${savedFeatures})` : ""}</span>
+            <button onclick="renameSystem(${i})" title="Rename">✎</button>
+            <button class="del" onclick="deleteSystem(${i})" title="Delete">×</button>
+        `;
+        systemList.appendChild(div);
+    });
+
+    const currentVal = systemSelect.value;
+    systemSelect.innerHTML = '<option value="">— select —</option>';
+    systems.forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        systemSelect.appendChild(opt);
+    });
+    if (systems.includes(currentVal)) systemSelect.value = currentVal;
+}
+
+function renderFeatureList() {
+    featureList.innerHTML = "";
+    features.forEach((f, i) => {
+        const div = document.createElement("div");
+        const activeSystemData = getActiveSystemData() || {};
+        div.className = "feature-item" + (activeSystemData[f] ? " saved" : "");
+        div.innerHTML = `
+            <span>${f}</span>
+            <button onclick="renameFeature(${i})" title="Rename">✎</button>
+            <button class="del" onclick="deleteFeature(${i})" title="Delete">×</button>
+        `;
+        featureList.appendChild(div);
+    });
+    
+    // Update select
+    const currentVal = featureSelect.value;
+    featureSelect.innerHTML = '<option value="">— select —</option>';
+    features.forEach(f => {
+        const opt = document.createElement("option");
+        opt.value = f;
+        const activeSystemData = getActiveSystemData() || {};
+        opt.textContent = f + (activeSystemData[f] ? " ✓" : "");
+        featureSelect.appendChild(opt);
+    });
+    if (features.includes(currentVal)) featureSelect.value = currentVal;
+    
+    updateSavedCount();
+}
+
+window.renameSystem = function(idx) {
+    const oldName = systems[idx];
+    const newName = prompt("Rename system:", oldName);
+    if (newName && newName.trim() && newName !== oldName) {
+        const trimmed = newName.trim();
+        if (systems.map(s=>s.toLowerCase()).includes(trimmed.toLowerCase())) {
+            toast("System name already exists.", "error");
+            return;
+        }
+        if (tempSavedData[oldName]) {
+            tempSavedData[trimmed] = tempSavedData[oldName];
+            delete tempSavedData[oldName];
+        }
+        systems[idx] = trimmed;
+        renderSystemList();
+        renderFeatureList();
+        if (systemSelect.value === oldName) systemSelect.value = trimmed;
+        updateSavedCount();
+        toast(`Renamed system to "${trimmed}"`, "success");
+    }
+};
+
+window.deleteSystem = function(idx) {
+    const name = systems[idx];
+    if (confirm(`Delete system "${name}"?`)) {
+        delete tempSavedData[name];
+        systems.splice(idx, 1);
+        if (systemSelect.value === name) systemSelect.value = "";
+        renderSystemList();
+        renderFeatureList();
+        loadSelectedFeatureMetadata();
+        updateSavedCount();
+        toast(`Deleted system "${name}"`, "warning");
+    }
+};
+
+window.renameFeature = function(idx) {
+    const oldName = features[idx];
+    const newName = prompt("Rename feature:", oldName);
+    if (newName && newName.trim() && newName !== oldName) {
+        const trimmed = newName.trim();
+        if (features.map(f => f.toLowerCase()).includes(trimmed.toLowerCase())) {
+            toast("Feature name already exists.", "error");
+            return;
+        }
+        Object.values(tempSavedData).forEach(systemData => {
+            if (systemData[oldName]) {
+                systemData[trimmed] = systemData[oldName];
+                delete systemData[oldName];
+            }
+        });
+        if (featureMetadata[oldName]) {
+            featureMetadata[trimmed] = featureMetadata[oldName];
+            delete featureMetadata[oldName];
+            saveFeatureMetadataToStorage();
+        }
+        features[idx] = trimmed;
+        saveFeaturesToStorage();
+        renderFeatureList();
+        loadSelectedFeatureMetadata();
+        toast(`Renamed to "${trimmed}"`, "success");
+    }
+};
+
+window.deleteFeature = function(idx) {
+    const name = features[idx];
+    if (confirm(`Delete feature "${name}"?`)) {
+        Object.values(tempSavedData).forEach(systemData => delete systemData[name]);
+        delete featureMetadata[name];
+        features.splice(idx, 1);
+        saveFeaturesToStorage();
+        saveFeatureMetadataToStorage();
+        renderFeatureList();
+        loadSelectedFeatureMetadata();
+        toast(`Deleted "${name}"`, "warning");
+    }
+};
+
+function updateSavedCount() {
+    const count = Object.values(tempSavedData).reduce((total, systemData) => total + Object.keys(systemData).length, 0);
+    savedCount.textContent = count;
+    masterCount.textContent = pdfFilename ? 1 : 0;
+}
+
+function buildPointsMap() {
+    const pointMap = {};
+    points.forEach(p => {
+        const x = Number(p.x_real.toFixed(6));
+        const y = Number(p.y_real.toFixed(6));
+        pointMap[String(x)] = String(y);
+    });
+    return pointMap;
+}
+
+function loadPointsFromMap(pointMap) {
+    if (!calib.valid || !pointMap) {
+        points = [];
+        selectedPointIndex = -1;
+        updateTable();
+        updateStatus();
+        redraw();
+        return;
+    }
+
+    points = Object.entries(pointMap).map(([xStr, yStr]) => {
+        const xReal = parseFloat(xStr);
+        const yReal = parseFloat(yStr);
+        const xImg = (xReal - calib.b) / calib.a;
+        const yImg = (yReal - calib.d) / calib.c;
+        return {
+            x_img: xImg,
+            y_img: yImg,
+            x_real: xReal,
+            y_real: yReal
+        };
+    }).filter(p => isFinite(p.x_img) && isFinite(p.y_img) && isFinite(p.x_real) && isFinite(p.y_real));
+
+    selectedPointIndex = -1;
+    updateTable();
+    updateStatus();
+    redraw();
+}
+
+function switchEditingContext() {
+    const systemName = systemSelect.value;
+    const featureName = featureSelect.value;
+    currentEditingKey = systemName && featureName ? `${systemName}::${featureName}` : "";
+
+    if (!calib.valid || !currentEditingKey) {
+        points = [];
+        selectedPointIndex = -1;
+        updateTable();
+        updateStatus();
+        redraw();
+        return;
+    }
+
+    const systemData = tempSavedData[systemName] || {};
+    const featureData = systemData[featureName];
+    loadPointsFromMap(featureData?.points || {});
+}
+
+function loadSelectedFeatureMetadata() {
+    const featureName = featureSelect.value;
+    if (!featureName || !featureMetadata[featureName]) {
+        xLabelInput.value = "";
+        yLabelInput.value = "";
+        return;
+    }
+    xLabelInput.value = featureMetadata[featureName].x_label || "";
+    yLabelInput.value = featureMetadata[featureName].y_label || "";
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  PDF LOADING & NAVIGATION
+// ═══════════════════════════════════════════════════════════════════════
+
+loadPdfBtn.addEventListener("click", () => fileInput.click());
+
+fileInput.addEventListener("change", e => {
+    if (e.target.files.length > 0) loadPdfFile(e.target.files[0]);
+});
+
+pdfViewer.addEventListener("dragover", e => { e.preventDefault(); dropOverlay.classList.add("drag-over"); });
+pdfViewer.addEventListener("dragleave", () => dropOverlay.classList.remove("drag-over"));
+pdfViewer.addEventListener("drop", e => {
+    e.preventDefault();
+    dropOverlay.classList.remove("drag-over");
+    const f = e.dataTransfer.files[0];
+    if (f && f.type === "application/pdf") loadPdfFile(f);
+    else toast("Please drop a PDF file.", "error");
+});
+
+async function loadPdfFile(file) {
+    // Clear temp data from previous PDF
+    tempSavedData = {};
+    systems = [];
+    updateSavedCount();
+    renderSystemList();
+    renderFeatureList();
+    closeDigitizer();
+    
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        totalPages = pdfDoc.numPages;
+        currentPage = 1;
+        pdfFilename = file.name;
+        pdfZoom = 1.0;
+        filenameLabel.textContent = file.name;
+        
+        dropOverlay.classList.add("hidden");
+        [prevPageBtn, nextPageBtn, zoomInBtn, zoomOutBtn, zoomFitBtn, snipBtn].forEach(b => b.disabled = false);
+        
+        await renderPage(currentPage);
+        toast(`Loaded "${file.name}" — ${totalPages} pages`, "success");
+    } catch (err) {
+        console.error(err);
+        toast("Failed to load PDF.", "error");
+    }
+}
+
+async function renderPage(pageNum) {
+    if (!pdfDoc) return;
+    
+    const page = await pdfDoc.getPage(pageNum);
+    const viewport = page.getViewport({ scale: PDF_BASE_SCALE * pdfZoom });
+    
+    pdfCanvas.width = viewport.width;
+    pdfCanvas.height = viewport.height;
+    
+    await page.render({ canvasContext: pdfCtx, viewport }).promise;
+    updatePageIndicator();
+}
+
+function updatePageIndicator() {
+    pageIndicator.textContent = `Page ${currentPage}/${totalPages} • ${Math.round(pdfZoom * 100)}%`;
+    prevPageBtn.disabled = currentPage <= 1;
+    nextPageBtn.disabled = currentPage >= totalPages;
+}
+
+prevPageBtn.addEventListener("click", async () => { if (currentPage > 1) { currentPage--; await renderPage(currentPage); } });
+nextPageBtn.addEventListener("click", async () => { if (currentPage < totalPages) { currentPage++; await renderPage(currentPage); } });
+
+zoomInBtn.addEventListener("click", async () => { pdfZoom = Math.min(3, pdfZoom + 0.25); await renderPage(currentPage); });
+zoomOutBtn.addEventListener("click", async () => { pdfZoom = Math.max(0.5, pdfZoom - 0.25); await renderPage(currentPage); });
+zoomFitBtn.addEventListener("click", async () => {
+    if (!pdfDoc) return;
+    const page = await pdfDoc.getPage(currentPage);
+    const vp = page.getViewport({ scale: 1 });
+    const containerWidth = pdfViewer.clientWidth - 30;
+    pdfZoom = containerWidth / (vp.width * PDF_BASE_SCALE);
+    await renderPage(currentPage);
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SNIP TOOL
+// ═══════════════════════════════════════════════════════════════════════
+
+snipBtn.addEventListener("click", () => {
+    if (!pdfDoc) { toast("Load a PDF first.", "warning"); return; }
+    snipMode = !snipMode;
+    snipBtn.classList.toggle("active", snipMode);
+    snipBtn.textContent = snipMode ? "✂ Snipping..." : "✂ Snip";
+    pdfViewer.style.cursor = snipMode ? "crosshair" : "default";
+});
+
+pdfViewer.addEventListener("mousedown", e => {
+    if (!snipMode || !pdfDoc || e.button !== 0) return;
+    const rect = pdfViewer.getBoundingClientRect();
+    snipStart = { x: e.clientX - rect.left + pdfViewer.scrollLeft, y: e.clientY - rect.top + pdfViewer.scrollTop };
+    snipDragging = true;
+    snipRect.style.display = "block";
+    snipRect.style.left = snipStart.x + "px";
+    snipRect.style.top = snipStart.y + "px";
+    snipRect.style.width = "0"; snipRect.style.height = "0";
+    e.preventDefault();
+});
+
+pdfViewer.addEventListener("mousemove", e => {
+    if (!snipDragging) return;
+    const rect = pdfViewer.getBoundingClientRect();
+    const cx = e.clientX - rect.left + pdfViewer.scrollLeft;
+    const cy = e.clientY - rect.top + pdfViewer.scrollTop;
+    const x = Math.min(snipStart.x, cx), y = Math.min(snipStart.y, cy);
+    snipRect.style.left = x + "px"; snipRect.style.top = y + "px";
+    snipRect.style.width = Math.abs(cx - snipStart.x) + "px";
+    snipRect.style.height = Math.abs(cy - snipStart.y) + "px";
+});
+
+pdfViewer.addEventListener("mouseup", e => {
+    if (!snipDragging) return;
+    snipDragging = false;
+    snipRect.style.display = "none";
+    snipMode = false;
+    snipBtn.classList.remove("active");
+    snipBtn.textContent = "✂ Snip";
+    pdfViewer.style.cursor = "default";
+
+    const sx = parseFloat(snipRect.style.left);
+    const sy = parseFloat(snipRect.style.top);
+    const sw = parseFloat(snipRect.style.width);
+    const sh = parseFloat(snipRect.style.height);
+
+    if (sw < 20 || sh < 20) { toast("Selection too small.", "warning"); return; }
+
+    const canvasRect = pdfCanvas.getBoundingClientRect();
+    const viewerRect = pdfViewer.getBoundingClientRect();
+    const canvasOffsetX = canvasRect.left - viewerRect.left + pdfViewer.scrollLeft;
+    const canvasOffsetY = canvasRect.top - viewerRect.top + pdfViewer.scrollTop;
+    const displayScale = pdfCanvas.clientWidth / pdfCanvas.width;
+
+    const cx0 = Math.max(0, Math.round((sx - canvasOffsetX) / displayScale));
+    const cy0 = Math.max(0, Math.round((sy - canvasOffsetY) / displayScale));
+    const cx1 = Math.min(pdfCanvas.width, cx0 + Math.round(sw / displayScale));
+    const cy1 = Math.min(pdfCanvas.height, cy0 + Math.round(sh / displayScale));
+
+    if (cx1 - cx0 < 10 || cy1 - cy0 < 10) { toast("Selection out of bounds.", "warning"); return; }
+
+    const offC = document.createElement("canvas");
+    offC.width = cx1 - cx0; offC.height = cy1 - cy0;
+    offC.getContext("2d").drawImage(pdfCanvas, cx0, cy0, cx1-cx0, cy1-cy0, 0, 0, cx1-cx0, cy1-cy0);
+
+    const img = new Image();
+    img.onload = () => { receiveImage(img); toast("Plot snipped! Click 4 axis points.", "success", 3000); };
+    img.src = offC.toDataURL("image/png");
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  DIGITIZER CORE
+// ═══════════════════════════════════════════════════════════════════════
+
+function d2i(dx,dy) { return { x:(dx-T.offsetX)/T.scale, y:(dy-T.offsetY)/T.scale }; }
+function i2d(ix,iy) { return { x:ix*T.scale+T.offsetX, y:iy*T.scale+T.offsetY }; }
+
+function resizeCanvas() {
+    const w = $("canvasWrap");
+    canvas.width = w.clientWidth;
+    canvas.height = w.clientHeight;
+    redraw();
+}
+window.addEventListener("resize", resizeCanvas);
+
+function redraw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!sourceImage) return;
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(sourceImage, T.offsetX, T.offsetY, sourceImage.width * T.scale, sourceImage.height * T.scale);
+
+    // Calibration crosshairs
+    calibClicks.forEach((p, i) => {
+        const d = i2d(p.x, p.y);
+        drawCross(d.x, d.y, "#60a5fa", 14, ["X_min","X_max","Y_min","Y_max"][i]);
+    });
+
+    drawSavedSystemOverlays();
+
+    // Active editable points
+    points.forEach((p, i) => {
+        const d = i2d(p.x_img, p.y_img);
+        const isSelected = i === selectedPointIndex;
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, isSelected ? pointRadius + 2 : pointRadius, 0, Math.PI * 2);
+        const activeColor = getSystemColor(systemSelect.value);
+        ctx.fillStyle = isSelected ? "#ffffff" : activeColor;
+        ctx.fill();
+        ctx.strokeStyle = isSelected ? activeColor : "#fff";
+        ctx.lineWidth = isSelected ? 2.5 : 1.5;
+        ctx.stroke();
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 10px sans-serif";
+        ctx.fillText(i + 1, d.x + 8, d.y - 8);
+    });
+}
+
+function drawCross(x, y, color, size, label) {
+    ctx.strokeStyle = color; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x-size,y); ctx.lineTo(x+size,y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x,y-size); ctx.lineTo(x,y+size); ctx.stroke();
+    if (label) { ctx.fillStyle = color; ctx.font = "bold 11px sans-serif"; ctx.fillText(label, x+10, y-10); }
+}
+
+function drawSavedSystemOverlays() {
+    if (!calib.valid) return;
+    const activeFeature = featureSelect.value;
+    if (!activeFeature) return;
+
+    systems.forEach(systemName => {
+        const systemData = tempSavedData[systemName];
+        const featureData = systemData && systemData[activeFeature];
+        if (!featureData || !featureData.points) return;
+
+        if (systemName === systemSelect.value) return;
+
+        const color = getSystemColor(systemName);
+
+        Object.entries(featureData.points).forEach(([xStr, yStr], idx) => {
+            const xReal = parseFloat(xStr);
+            const yReal = parseFloat(yStr);
+            if (!isFinite(xReal) || !isFinite(yReal)) return;
+
+            const xImg = (xReal - calib.b) / calib.a;
+            const yImg = (yReal - calib.d) / calib.c;
+            const d = i2d(xImg, yImg);
+
+            ctx.beginPath();
+            ctx.arc(d.x, d.y, Math.max(2, pointRadius - 1), 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 0.8;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+
+            ctx.fillStyle = color;
+            ctx.font = "10px sans-serif";
+            ctx.fillText(systemName, d.x + 6, d.y + 12 + (idx % 2) * 10);
+        });
+    });
+}
+
+function updateStatus() {
+    modeIndicator.className = "";
+    modeIndicator.textContent = "";
+    
+    if (appState === "calibration") {
+        statusText.textContent = `Click point ${calibClicks.length+1}/4: ${["X_min","X_max","Y_min","Y_max"][calibClicks.length]}`;
+        modeIndicator.textContent = "CALIBRATION";
+        modeIndicator.className = "calibration";
+    } else if (appState === "calibration_form") {
+        statusText.textContent = "Enter axis values and confirm";
+        modeIndicator.textContent = "CALIBRATION";
+        modeIndicator.className = "calibration";
+    } else if (appState === "digitization") {
+        statusText.textContent = `${points.length} points • Left-click to add • Ctrl+Z undo • Scroll to zoom`;
+        modeIndicator.textContent = "DIGITIZING";
+        modeIndicator.className = "digitization";
+    } else if (appState === "edit") {
+        statusText.textContent = "Click point to select • Drag to move • Right-click for options";
+        modeIndicator.textContent = "EDIT MODE";
+        modeIndicator.className = "edit";
+    } else {
+        statusText.textContent = sourceImage ? "Ready" : "Snip a plot from the PDF";
+    }
+}
+
+function updateTable() {
+    dataBody.innerHTML = "";
+    points.forEach((p, i) => {
+        const tr = document.createElement("tr");
+        tr.className = i === selectedPointIndex ? "selected" : "";
+        tr.innerHTML = `<td>${i+1}</td><td>${p.x_real.toFixed(4)}</td><td>${p.y_real.toFixed(4)}</td>
+            <td><button class="del-btn" onclick="deletePoint(${i})">×</button></td>`;
+        tr.addEventListener("click", () => { selectedPointIndex = i; redraw(); updateTable(); });
+        dataBody.appendChild(tr);
+    });
+}
+
+window.deletePoint = function(idx) {
+    points.splice(idx, 1);
+    if (selectedPointIndex >= points.length) selectedPointIndex = -1;
+    recalculatePoints();
+    redraw(); updateTable(); updateStatus();
+};
+
+function receiveImage(img) {
+    sourceImage = img;
+    appState = "calibration";
+    calibClicks = [];
+    points = [];
+    calib = { a:0, b:0, c:0, d:0, valid:false };
+    editMode = false;
+    selectedPointIndex = -1;
+
+    const sx = canvas.width / img.width;
+    const sy = canvas.height / img.height;
+    T.scale = Math.min(sx, sy) * 0.85;
+    T.offsetX = (canvas.width - img.width * T.scale) / 2;
+    T.offsetY = (canvas.height - img.height * T.scale) / 2;
+
+    emptyState.classList.add("hidden");
+    resetPtsBtn.style.display = "none";
+    closeDigitizerBtn.style.display = "block";
+    editModeBtn.style.display = "none";
+    calibForm.style.display = "none";
+    calibPanel.style.display = "none";
+
+    switchEditingContext();
+    updateStatus(); updateTable(); redraw();
+}
+
+function closeDigitizer() {
+    appState = "idle";
+    sourceImage = null;
+    calibClicks = [];
+    calib = { a:0,b:0,c:0,d:0, valid:false };
+    points = [];
+    editMode = false;
+    selectedPointIndex = -1;
+    currentEditingKey = "";
+    T.scale = 1; T.offsetX = 0; T.offsetY = 0;
+    
+    calibForm.style.display = "none";
+    calibPanel.style.display = "none";
+    resetPtsBtn.style.display = "none";
+    closeDigitizerBtn.style.display = "none";
+    editModeBtn.style.display = "none";
+    magnifier.style.display = "none";
+    coordReadout.style.display = "none";
+    emptyState.classList.remove("hidden");
+    
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    updateStatus(); updateTable();
+}
+
+closeDigitizerBtn.addEventListener("click", () => {
+    if (points.length > 0 && !confirm("Unsaved points will be lost. Close?")) return;
+    closeDigitizer();
+    toast("Closed. Continue with the PDF.", "warning");
+});
+
+// ── Edit mode ──────────────────────────────────────────────────────────
+editModeBtn.addEventListener("click", () => {
+    editMode = !editMode;
+    appState = editMode ? "edit" : "digitization";
+    editModeBtn.classList.toggle("active", editMode);
+    editModeBtn.textContent = editMode ? "✋ Done Editing" : "✋ Edit Points";
+    selectedPointIndex = -1;
+    updateStatus(); redraw();
+});
+
+// ── Canvas events ──────────────────────────────────────────────────────
+canvas.addEventListener("mousedown", e => {
+    if (!sourceImage) return;
+    
+    const r = canvas.getBoundingClientRect();
+    const dx = e.clientX - r.left, dy = e.clientY - r.top;
+    const img = d2i(dx, dy);
+    
+    // Right/middle click = pan
+    if (e.button === 1 || e.button === 2) {
+        isPanning = true;
+        panStart = {x:e.clientX, y:e.clientY};
+        panOffStart = {x:T.offsetX, y:T.offsetY};
+        contextMenu.style.display = "none";
+        e.preventDefault();
+        return;
+    }
+    
+    if (e.button !== 0) return;
+    contextMenu.style.display = "none";
+    
+    // Edit mode: select or start drag
+    if (appState === "edit") {
+        const hitIdx = findPointAt(dx, dy);
+        if (hitIdx >= 0) {
+            selectedPointIndex = hitIdx;
+            draggingPoint = true;
+            redraw(); updateTable();
+        } else {
+            selectedPointIndex = -1;
+            redraw(); updateTable();
+        }
+        return;
+    }
+    
+    // Calibration
+    if (appState === "calibration") {
+        calibClicks.push({x:img.x, y:img.y});
+        redraw();
+        if (calibClicks.length >= 4) {
+            appState = "calibration_form";
+            calibForm.style.display = "block";
+            $("fXmin").focus();
+        }
+        updateStatus();
+        return;
+    }
+    
+    // Digitization
+    if (appState === "digitization" && calib.valid) {
+        const xr = calib.a * img.x + calib.b;
+        const yr = calib.c * img.y + calib.d;
+        points.push({x_img:img.x, y_img:img.y, x_real:xr, y_real:yr});
+        redraw(); updateStatus(); updateTable();
+    }
+});
+
+canvas.addEventListener("mousemove", e => {
+    const r = canvas.getBoundingClientRect();
+    const dx = e.clientX - r.left, dy = e.clientY - r.top;
+    
+    if (isPanning) {
+        T.offsetX = panOffStart.x + (e.clientX - panStart.x);
+        T.offsetY = panOffStart.y + (e.clientY - panStart.y);
+        redraw();
+        return;
+    }
+    
+    // Dragging a point
+    if (draggingPoint && selectedPointIndex >= 0) {
+        const img = d2i(dx, dy);
+        points[selectedPointIndex].x_img = img.x;
+        points[selectedPointIndex].y_img = img.y;
+        points[selectedPointIndex].x_real = calib.a * img.x + calib.b;
+        points[selectedPointIndex].y_real = calib.c * img.y + calib.d;
+        redraw(); updateTable();
+        return;
+    }
+    
+    if (!sourceImage) return;
+    
+    const img = d2i(dx, dy);
+    
+    // Cursor style in edit mode
+    if (appState === "edit") {
+        canvas.style.cursor = findPointAt(dx, dy) >= 0 ? "grab" : "default";
+    } else {
+        canvas.style.cursor = "crosshair";
+    }
+    
+    // Coord readout
+    coordReadout.style.display = "block";
+    if (calib.valid) {
+        const xr = calib.a * img.x + calib.b;
+        const yr = calib.c * img.y + calib.d;
+        coordReadout.textContent = `x: ${xr.toFixed(4)}  y: ${yr.toFixed(4)}`;
+    } else {
+        coordReadout.textContent = `px: ${Math.round(img.x)}, ${Math.round(img.y)}`;
+    }
+    
+    // Magnifier
+    if (!magnifierEnabled) {
+        magnifier.style.display = "none";
+        return;
+    }
+    magnifier.style.display = "block";
+    let mx = e.clientX + 20, my = e.clientY + 20;
+    if (mx + 154 > window.innerWidth) mx = e.clientX - 174;
+    if (my + 154 > window.innerHeight) my = e.clientY - 174;
+    magnifier.style.left = Math.max(0,mx) + "px";
+    magnifier.style.top = Math.max(0,my) + "px";
+    
+    magCtx.clearRect(0,0,150,150);
+    magCtx.imageSmoothingEnabled = false;
+    magCtx.drawImage(sourceImage, img.x-37.5, img.y-37.5, 75, 75, 0, 0, 150, 150);
+    magCtx.strokeStyle = getSystemColor(systemSelect.value); magCtx.lineWidth = 1;
+    magCtx.beginPath(); magCtx.moveTo(75,60); magCtx.lineTo(75,90); magCtx.stroke();
+    magCtx.beginPath(); magCtx.moveTo(60,75); magCtx.lineTo(90,75); magCtx.stroke();
+});
+
+canvas.addEventListener("mouseup", e => {
+    if (e.button === 1 || e.button === 2) isPanning = false;
+    draggingPoint = false;
+});
+
+canvas.addEventListener("mouseleave", () => {
+    magnifier.style.display = "none";
+    coordReadout.style.display = "none";
+    isPanning = false;
+    draggingPoint = false;
+});
+
+canvas.addEventListener("contextmenu", e => {
+    e.preventDefault();
+    if (appState !== "edit" && appState !== "digitization") return;
+    
+    const r = canvas.getBoundingClientRect();
+    const hitIdx = findPointAt(e.clientX - r.left, e.clientY - r.top);
+    if (hitIdx >= 0) {
+        selectedPointIndex = hitIdx;
+        redraw(); updateTable();
+        contextMenu.style.left = e.clientX + "px";
+        contextMenu.style.top = e.clientY + "px";
+        contextMenu.style.display = "block";
+    }
+});
+
+function findPointAt(dx, dy) {
+    for (let i = points.length - 1; i >= 0; i--) {
+        const d = i2d(points[i].x_img, points[i].y_img);
+        if (Math.hypot(d.x - dx, d.y - dy) < 10) return i;
+    }
+    return -1;
+}
+
+// Context menu actions
+$("ctxDeletePoint").addEventListener("click", () => {
+    if (selectedPointIndex >= 0) deletePoint(selectedPointIndex);
+    contextMenu.style.display = "none";
+});
+
+$("ctxMovePoint").addEventListener("click", () => {
+    if (selectedPointIndex >= 0) {
+        editMode = true;
+        appState = "edit";
+        editModeBtn.classList.add("active");
+        editModeBtn.textContent = "✋ Done Editing";
+        updateStatus();
+        toast("Drag the point to move it.", "warning");
+    }
+    contextMenu.style.display = "none";
+});
+
+document.addEventListener("click", e => {
+    if (!contextMenu.contains(e.target)) contextMenu.style.display = "none";
+});
+
+// Zoom
+canvas.addEventListener("wheel", e => {
+    e.preventDefault();
+    if (!sourceImage) return;
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const zf = e.deltaY < 0 ? 1.15 : 1/1.15;
+    const ns = Math.max(0.1, Math.min(20, T.scale * zf));
+    const ratio = ns / T.scale;
+    T.offsetX = mx - ratio * (mx - T.offsetX);
+    T.offsetY = my - ratio * (my - T.offsetY);
+    T.scale = ns;
+    redraw();
+}, {passive:false});
+
+// Keyboard
+document.addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        if ((appState === "digitization" || appState === "edit") && points.length > 0) {
+            points.pop();
+            if (selectedPointIndex >= points.length) selectedPointIndex = -1;
+            redraw(); updateStatus(); updateTable();
+        }
+        e.preventDefault();
+    }
+    if (e.key === "Delete" && selectedPointIndex >= 0) {
+        deletePoint(selectedPointIndex);
+    }
+    if (e.key === "Escape") {
+        selectedPointIndex = -1;
+        contextMenu.style.display = "none";
+        redraw(); updateTable();
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  CALIBRATION
+// ═══════════════════════════════════════════════════════════════════════
+
+confirmBtn.addEventListener("click", () => {
+    const xmin = parseFloat($("fXmin").value);
+    const xmax = parseFloat($("fXmax").value);
+    const ymin = parseFloat($("fYmin").value);
+    const ymax = parseFloat($("fYmax").value);
+
+    if (!isFinite(xmin) || !isFinite(xmax) || !isFinite(ymin) || !isFinite(ymax)) {
+        calibError.textContent = "All values must be valid numbers.";
+        calibError.style.display = "block";
+        return;
+    }
+    calibError.style.display = "none";
+    
+    calibValues = {xmin, xmax, ymin, ymax};
+    applyCalibration();
+    
+    calibForm.style.display = "none";
+    appState = "digitization";
+    resetPtsBtn.style.display = "block";
+    editModeBtn.style.display = "block";
+    calibPanel.style.display = "block";
+    
+    // Populate editable calib panel
+    $("calibXmin").value = xmin;
+    $("calibXmax").value = xmax;
+    $("calibYmin").value = ymin;
+    $("calibYmax").value = ymax;
+    
+    updateStatus(); redraw();
+    toast("Calibrated! Click on data points.", "success");
+});
+
+function applyCalibration() {
+    const {xmin, xmax, ymin, ymax} = calibValues;
+    const x1 = calibClicks[0].x, x2 = calibClicks[1].x;
+    const y3 = calibClicks[2].y, y4 = calibClicks[3].y;
+    
+    calib.a = (xmax - xmin) / (x2 - x1);
+    calib.b = xmin - calib.a * x1;
+    calib.c = (ymax - ymin) / (y4 - y3);
+    calib.d = ymax - calib.c * y4;
+    calib.valid = true;
+}
+
+function recalculatePoints() {
+    if (!calib.valid) return;
+    points.forEach(p => {
+        p.x_real = calib.a * p.x_img + calib.b;
+        p.y_real = calib.c * p.y_img + calib.d;
+    });
+}
+
+recalibBtn.addEventListener("click", () => {
+    const xmin = parseFloat($("calibXmin").value);
+    const xmax = parseFloat($("calibXmax").value);
+    const ymin = parseFloat($("calibYmin").value);
+    const ymax = parseFloat($("calibYmax").value);
+    
+    if (!isFinite(xmin) || !isFinite(xmax) || !isFinite(ymin) || !isFinite(ymax)) {
+        toast("Invalid calibration values.", "error");
+        return;
+    }
+    
+    calibValues = {xmin, xmax, ymin, ymax};
+    applyCalibration();
+    recalculatePoints();
+    redraw(); updateTable();
+    toast("Calibration updated. Points recalculated.", "success");
+});
+
+resetPtsBtn.addEventListener("click", () => {
+    if (!confirm("Clear all points?")) return;
+    points = [];
+    selectedPointIndex = -1;
+    redraw(); updateStatus(); updateTable();
+    toast("Points cleared.", "warning");
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  FEATURE MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════
+
+addSystemBtn.addEventListener("click", () => {
+    const name = systemInput.value.trim();
+    if (!name) { toast("Enter a system name.", "error"); return; }
+    if (systems.map(s=>s.toLowerCase()).includes(name.toLowerCase())) {
+        toast("System already exists.", "error"); return;
+    }
+    systems.push(name);
+    renderSystemList();
+    systemSelect.value = name;
+    systemInput.value = "";
+    renderFeatureList();
+    loadSelectedFeatureMetadata();
+    toast(`Added system "${name}"`, "success");
+});
+
+systemSelect.addEventListener("change", () => {
+    renderFeatureList();
+    loadSelectedFeatureMetadata();
+    switchEditingContext();
+});
+
+featureSelect.addEventListener("change", () => {
+    loadSelectedFeatureMetadata();
+    switchEditingContext();
+});
+
+toggleMagnifier.addEventListener("change", () => {
+    magnifierEnabled = toggleMagnifier.checked;
+    if (!magnifierEnabled) magnifier.style.display = "none";
+});
+
+pointSizeInput.addEventListener("input", () => {
+    pointRadius = parseInt(pointSizeInput.value, 10) || 5;
+    redraw();
+});
+
+addFeatureBtn.addEventListener("click", () => {
+    const name = featureInput.value.trim();
+    if (!name) { toast("Enter a feature name.", "error"); return; }
+    if (features.map(f=>f.toLowerCase()).includes(name.toLowerCase())) {
+        toast("Feature already exists.", "error"); return;
+    }
+    features.push(name);
+    saveFeaturesToStorage();
+    renderFeatureList();
+    featureSelect.value = name;
+    featureInput.value = "";
+    switchEditingContext();
+    toast(`Added "${name}"`, "success");
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SAVE FEATURE DATA (temp) & EXPORT EXCEL
+// ═══════════════════════════════════════════════════════════════════════
+
+saveFeatureBtn.addEventListener("click", () => {
+    if (!pdfDoc) { toast("No PDF loaded.", "error"); return; }
+    const systemName = systemSelect.value;
+    if (!systemName) { toast("Select a system.", "error"); return; }
+    const feat = featureSelect.value;
+    if (!feat) { toast("Select a feature.", "error"); return; }
+    const xLabel = xLabelInput.value.trim();
+    const yLabel = yLabelInput.value.trim();
+    if (!xLabel || !yLabel) { toast("Enter both X and Y labels.", "error"); return; }
+    if (!calib.valid) { toast("Complete calibration first.", "error"); return; }
+    if (points.length === 0) { toast("No points to save.", "error"); return; }
+
+    featureMetadata[feat] = {
+        x_label: xLabel,
+        y_label: yLabel
+    };
+    saveFeatureMetadataToStorage();
+
+    const systemData = getActiveSystemData();
+    systemData[feat] = {
+        points: buildPointsMap()
+    };
+    
+    renderSystemList();
+    renderFeatureList();
+    switchEditingContext();
+    toast(`Saved "${feat}" for system "${systemName}" — ${points.length} points`, "success");
+});
+
+saveExcelBtn.addEventListener("click", () => {
+    if (!pdfDoc) { toast("No PDF loaded.", "error"); return; }
+    const systemNames = Object.keys(tempSavedData).filter(name => Object.keys(tempSavedData[name]).length > 0);
+    if (systemNames.length === 0) { toast("No saved systems/features to export.", "error"); return; }
+
+    const rows = systemNames.map(systemName => {
+        const row = { "PDF File": pdfFilename, "System Name": systemName };
+        Object.entries(tempSavedData[systemName]).forEach(([featureName, payload]) => {
+            row[featureName] = JSON.stringify({
+                x_label: featureMetadata[featureName]?.x_label || "",
+                y_label: featureMetadata[featureName]?.y_label || "",
+                points: payload.points || {}
+            });
+        });
+        return row;
+    });
+
+    const allFeatures = [];
+    rows.forEach(row => {
+        Object.keys(row).forEach(key => {
+            if (!["PDF File", "System Name"].includes(key) && !allFeatures.includes(key)) {
+                allFeatures.push(key);
+            }
+        });
+    });
+
+    const normalizedRows = rows.map(row => {
+        const normalized = { "PDF File": row["PDF File"], "System Name": row["System Name"] || "" };
+        allFeatures.forEach(f => { normalized[f] = row[f] !== undefined ? row[f] : ""; });
+        return normalized;
+    });
+
+    const header = ["PDF File", "System Name", ...allFeatures];
+    const ws = XLSX.utils.json_to_sheet(normalizedRows, { header });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "paper_data");
+    ws["!cols"] = header.map(k => ({ wch: Math.max(k.length, 22) }));
+
+    const outputName = (pdfFilename || "paper").replace(/\.pdf$/i, "") + ".xlsx";
+    XLSX.writeFile(wb, outputName);
+
+    updateSavedCount();
+    toast(`Saved ${outputName} with ${systemNames.length} systems.`, "success", 4000);
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  RESIZABLE PANES
+// ═══════════════════════════════════════════════════════════════════════
+
+function setupResize(handleId, paneId, dir) {
+    const handle = $(handleId), pane = $(paneId);
+    handle.addEventListener("mousedown", e => {
+        e.preventDefault();
+        const startX = e.clientX, startW = pane.getBoundingClientRect().width;
+        handle.classList.add("active");
+        
+        function onMove(ev) {
+            const delta = dir === "left" ? (ev.clientX - startX) : (startX - ev.clientX);
+            pane.style.width = Math.max(180, startW + delta) + "px";
+            resizeCanvas();
+        }
+        function onUp() {
+            handle.classList.remove("active");
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+        }
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+    });
+}
+setupResize("resizeLeft", "leftPane", "left");
+setupResize("resizeRight", "rightPane", "right");
+
+// ── Init ───────────────────────────────────────────────────────────────
+renderSystemList();
+renderFeatureList();
+requestAnimationFrame(resizeCanvas);
+</script>
+</body>
+</html>
