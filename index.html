@@ -52,15 +52,30 @@
 
         /* ── PDF Viewer ──────────────────────────────── */
         #pdfViewer {
-            flex: 1; overflow: auto; display: flex; background: #0f172a;
-            position: relative; padding: 12px;
+            flex: 1; overflow: auto; background: #0f172a;
+            position: relative; padding: 16px; cursor: grab;
+            user-select: none; -webkit-user-select: none;
         }
         #pdfCanvasWrap {
-            margin: auto; transform-origin: top center;
+            margin: 0 auto;
+            display: flex; flex-direction: column; align-items: center;
+            gap: 16px; width: fit-content;
         }
-        #pdfCanvas {
-            background: #fff; box-shadow: 0 4px 24px rgba(0,0,0,0.4);
-            display: block;
+        .pdf-page {
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transition: box-shadow 0.1s;
+        }
+        .pdf-page:hover { box-shadow: 0 14px 40px rgba(0,0,0,0.6); }
+        .pdf-page canvas {
+            background: #fff; display: block;
+            border: 1px solid #475569; touch-action: none;
+        }
+        .pdf-page-num {
+            position: absolute; top: 6px; right: 6px;
+            background: rgba(15,23,42,0.8); color: #94a3b8;
+            font-size: 10px; padding: 2px 7px; border-radius: 3px;
+            pointer-events: none; z-index: 5; font-weight: 600;
         }
         #pageIndicator {
             text-align: center; padding: 6px 0; color: #94a3b8; font-size: 12px;
@@ -254,12 +269,12 @@
 
         /* ── Feature/system list ─────────────────────── */
         #systemList, #featureList {
-            max-height: 100px; overflow-y: auto; border: 1px solid #334155;
+            max-height: 140px; min-height: 36px; overflow-y: auto; border: 1px solid #334155;
             border-radius: 4px; background: #0f172a;
         }
         .feature-item {
-            display: flex; align-items: center; padding: 4px 6px; gap: 4px;
-            border-bottom: 1px solid #1e293b; font-size: 11px;
+            display: flex; align-items: center; padding: 6px 8px; gap: 6px;
+            border-bottom: 1px solid #1e293b; font-size: 12px;
         }
         .feature-item:last-child { border-bottom: none; }
         .feature-item span { flex: 1; color: #cbd5e1; }
@@ -331,7 +346,7 @@
 <body>
 
 <div id="app">
-    <!-- ════════ LEFT PANE: PDF Navigator ════════ -->
+    <!-- ════════ LEFT PANE ════════ -->
     <div id="leftPane">
         <div id="leftToolbar">
             <button id="loadPdfBtn" class="primary">Load PDF</button>
@@ -345,9 +360,7 @@
             <button id="snipBtn" disabled>✂ Snip</button>
         </div>
         <div id="pdfViewer">
-            <div id="pdfCanvasWrap">
-                <canvas id="pdfCanvas"></canvas>
-            </div>
+            <div id="pdfCanvasWrap"></div>
             <div id="snipRect"></div>
             <div id="dropOverlay">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -363,7 +376,7 @@
 
     <div class="resize-handle" id="resizeLeft"></div>
 
-    <!-- ════════ CENTRE PANE: Digitizer Canvas ════════ -->
+    <!-- ════════ CENTRE PANE ════════ -->
     <div id="centrePane">
         <div id="statusBar">
             <span id="statusText">Snip a plot region from the PDF to begin digitizing</span>
@@ -381,7 +394,6 @@
                 <span style="font-size:12px; opacity:0.6;">Use <b>Snip</b> on the PDF to select a plot region</span>
             </div>
 
-            <!-- Calibration edit panel -->
             <div id="calibPanel">
                 <h4>Axis Calibration</h4>
                 <div class="calib-row"><label>X min:</label><input type="text" id="calibXmin" /></div>
@@ -391,7 +403,6 @@
                 <button id="recalibBtn">Update Calibration</button>
             </div>
 
-            <!-- Initial calibration form -->
             <div id="calibForm">
                 <h3>Enter Real-World Axis Values</h3>
                 <div class="cf-row"><label>X_min value:</label><input type="text" id="fXmin" /></div>
@@ -411,7 +422,7 @@
 
     <div class="resize-handle" id="resizeRight"></div>
 
-    <!-- ════════ RIGHT PANE: Features & Data ════════ -->
+    <!-- ════════ RIGHT PANE ════════ -->
     <div id="rightPane">
         <label>PDF file</label>
         <div class="filename" id="filenameLabel">No PDF loaded</div>
@@ -442,22 +453,18 @@
         <label style="margin-top:4px;">Active feature</label>
         <select id="featureSelect"><option value="">— select —</option></select>
 
-        <!-- Feature type badge (auto-shown when feature selected) -->
         <div id="featureTypeBadge" style="display:none; margin-top:2px;"></div>
 
-        <!-- Checkbox: plot digitization vs manual. Hidden for gaussian. -->
         <label id="plotCheckboxRow" class="checkbox-row" style="display:none;">
             <input type="checkbox" id="isPlotCheckbox" checked />
             Plot digitization
         </label>
 
-        <!-- Manual value input block -->
         <div id="manualValueSection">
             <label>Manual value</label>
             <input type="number" id="manualValueInput" step="any" placeholder="Enter a number…" />
         </div>
 
-        <!-- Gaussian stats block -->
         <div id="gaussianStatsSection">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
                 <span style="color:#fbbf24; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px;">∿ Gaussian fit</span>
@@ -467,13 +474,11 @@
             <div class="g-hint">Click PEAK first → then curve points to estimate σ</div>
         </div>
 
-        <!-- X label row (hidden for manual_value) -->
         <div id="xLabelRow">
             <label style="margin-top:4px;">X label</label>
             <input type="text" id="xLabelInput" placeholder="e.g. Time (h)" />
         </div>
 
-        <!-- Y label row (hidden for gaussian and manual_value) -->
         <div id="yLabelRow">
             <label>Y label</label>
             <input type="text" id="yLabelInput" placeholder="e.g. Viability (%)" />
@@ -500,11 +505,11 @@
         </div>
 
         <button class="btn-sm btn-purple" id="saveFeatureBtn">💾 Save Feature Data</button>
+        <button class="btn-sm btn-blue" id="copyJsonBtn">📋 Copy System JSON</button>
         <button class="btn-sm btn-green" id="saveExcelBtn">📊 Export PDF Excel</button>
     </div>
 </div>
 
-<!-- Context menu for points -->
 <div id="contextMenu">
     <button id="ctxMovePoint">Move Point</button>
     <button id="ctxDeletePoint" class="danger">Delete Point</button>
@@ -514,7 +519,7 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════
-//  PLOT DIGITIZER — Full Featured Version
+//  PLOT DIGITIZER
 // ═══════════════════════════════════════════════════════════════════════
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -526,6 +531,8 @@ let totalPages = 0;
 let pdfFilename = "";
 let pdfZoom = 1.0;
 const PDF_BASE_SCALE = 1.5;
+let pageCanvases = [];   // [{ wrap, canvas, ctx, page }]
+let renderToken = 0;
 
 let appState = "idle";  // idle | calibration | calibration_form | digitization | edit
 let sourceImage = null;
@@ -541,17 +548,16 @@ let snipDragging = false;
 let isPanning = false;
 let panStart = {x:0,y:0};
 let panOffStart = {x:0,y:0};
+let pdfPanActive = false;
+let pdfPanOrigin = {x:0,y:0};
+let pdfScrollOrigin = {left:0,top:0};
 
-// Edit mode
 let editMode = false;
 let selectedPointIndex = -1;
 let draggingPoint = false;
 
-// Feature management
 let features = JSON.parse(localStorage.getItem('plotDigitizerFeatures') || '[]');
 let featureMetadata = JSON.parse(localStorage.getItem('plotDigitizerFeatureMetadata') || '{}');
-// featureTypes: { featureName: 'plot' | 'manual_value' }
-// 'gaussian' is auto-detected by name suffix — not stored
 let featureTypes = JSON.parse(localStorage.getItem('plotDigitizerFeatureTypes') || '{}');
 let systems = [];
 let tempSavedData = {};
@@ -578,8 +584,6 @@ const closeDigitizerBtn = $("closeDigitizerBtn");
 const editModeBtn = $("editModeBtn");
 const coordReadout = $("coordReadout");
 const emptyState = $("emptyState");
-const pdfCanvas = $("pdfCanvas");
-const pdfCtx = pdfCanvas.getContext("2d");
 const pdfCanvasWrap = $("pdfCanvasWrap");
 const pdfViewer = $("pdfViewer");
 const dropOverlay = $("dropOverlay");
@@ -607,6 +611,7 @@ const toggleMagnifier = $("toggleMagnifier");
 const pointSizeInput = $("pointSizeInput");
 const saveFeatureBtn = $("saveFeatureBtn");
 const saveExcelBtn = $("saveExcelBtn");
+const copyJsonBtn = $("copyJsonBtn");
 const filenameLabel = $("filenameLabel");
 const dataBody = $("dataBody");
 const savedCount = $("savedCount");
@@ -664,7 +669,6 @@ function updateFeatureTypeUI() {
         return;
     }
 
-    // Badge
     const badgeInfo = {
         plot:     ['📊 Plot',     'plot'],
         manual_value: ['🔢 Manual', 'manual'],
@@ -674,7 +678,6 @@ function updateFeatureTypeUI() {
     featureTypeBadge.innerHTML = `<span class="feat-type-badge ${cls}">${label}</span>`;
     featureTypeBadge.style.display = 'block';
 
-    // Checkbox row (only for non-gaussian)
     if (type === 'gaussian') {
         plotCheckboxRow.style.display = 'none';
     } else {
@@ -682,19 +685,13 @@ function updateFeatureTypeUI() {
         isPlotCheckbox.checked = (type === 'plot');
     }
 
-    // Manual value section
     manualValueSection.style.display = (type === 'manual_value') ? 'block' : 'none';
-
-    // Gaussian stats section
     gaussianStatsSection.style.display = (type === 'gaussian') ? 'block' : 'none';
     if (type === 'gaussian') updateGaussianStats();
-
-    // Labels: hide x for manual_value, hide y for gaussian and manual_value
     xLabelRow.style.display = (type === 'manual_value') ? 'none' : 'block';
     yLabelRow.style.display = (type === 'plot') ? 'block' : 'none';
 }
 
-// Checkbox toggle: plot ↔ manual_value
 isPlotCheckbox.addEventListener('change', () => {
     const featureName = featureSelect.value;
     if (!featureName || getFeatureType(featureName) === 'gaussian') return;
@@ -710,42 +707,30 @@ function computeGaussian() {
     const mean = points[0].x_real;
     const peakY = points[0].y_real;
     if (!isFinite(mean) || !isFinite(peakY) || peakY <= 0) return null;
-
     if (points.length < 2) return { mean, std: null };
-
     const sigmas = [];
     for (let i = 1; i < points.length; i++) {
-        const xReal = points[i].x_real;
-        const yReal = points[i].y_real;
-        if (!isFinite(xReal) || !isFinite(yReal) || yReal <= 0 || yReal >= peakY) continue;
-        const ratio = yReal / peakY;
-        const sigma = Math.abs(xReal - mean) / Math.sqrt(-2 * Math.log(ratio));
-        if (isFinite(sigma) && sigma > 0) sigmas.push(sigma);
+        const xReal = points[i].x_real, yReal = points[i].y_real;
+        if (!isFinite(xReal)||!isFinite(yReal)||yReal<=0||yReal>=peakY) continue;
+        const sigma = Math.abs(xReal-mean)/Math.sqrt(-2*Math.log(yReal/peakY));
+        if (isFinite(sigma)&&sigma>0) sigmas.push(sigma);
     }
-    if (sigmas.length === 0) return { mean, std: null };
-    const std = sigmas.reduce((a, b) => a + b, 0) / sigmas.length;
-    return { mean, std };
+    if (sigmas.length===0) return {mean, std:null};
+    return {mean, std:sigmas.reduce((a,b)=>a+b,0)/sigmas.length};
 }
 
 function updateGaussianStats() {
     const g = computeGaussian();
-    if (!g) {
-        gaussMeanDisplay.textContent = '—';
-        gaussStdDisplay.textContent = '—';
-    } else {
+    if (!g) { gaussMeanDisplay.textContent='—'; gaussStdDisplay.textContent='—'; }
+    else {
         gaussMeanDisplay.textContent = g.mean.toFixed(4);
-        gaussStdDisplay.textContent = g.std != null ? g.std.toFixed(4) : '— (need curve points)';
+        gaussStdDisplay.textContent = g.std!=null ? g.std.toFixed(4) : '— (need curve points)';
     }
 }
 
 // ── Storage helpers ────────────────────────────────────────────────────
-function saveFeaturesToStorage() {
-    localStorage.setItem('plotDigitizerFeatures', JSON.stringify(features));
-}
-
-function saveFeatureMetadataToStorage() {
-    localStorage.setItem('plotDigitizerFeatureMetadata', JSON.stringify(featureMetadata));
-}
+function saveFeaturesToStorage()             { localStorage.setItem('plotDigitizerFeatures', JSON.stringify(features)); }
+function saveFeatureMetadataToStorage()      { localStorage.setItem('plotDigitizerFeatureMetadata', JSON.stringify(featureMetadata)); }
 
 function getActiveSystemData() {
     const systemName = systemSelect.value;
@@ -753,66 +738,85 @@ function getActiveSystemData() {
     if (!tempSavedData[systemName]) tempSavedData[systemName] = {};
     return tempSavedData[systemName];
 }
-
 function getSystemColor(systemName) {
     const idx = systems.indexOf(systemName);
-    return systemColors[idx >= 0 ? idx % systemColors.length : 0];
+    return systemColors[idx>=0 ? idx%systemColors.length : 0];
 }
 
-// ── Render system list ─────────────────────────────────────────────────
+// ── Render system & feature lists ──────────────────────────────────────
 function renderSystemList() {
     systemList.innerHTML = "";
-    systems.forEach((name, i) => {
-        const div = document.createElement("div");
-        const savedFeatures = Object.keys(tempSavedData[name] || {}).length;
-        div.className = "feature-item" + (savedFeatures > 0 ? " saved" : "");
-        div.innerHTML = `
-            <span>${name}${savedFeatures > 0 ? ` (${savedFeatures})` : ""}</span>
-            <button onclick="renameSystem(${i})" title="Rename">✎</button>
-            <button class="del" onclick="deleteSystem(${i})" title="Delete">×</button>
-        `;
-        systemList.appendChild(div);
-    });
-
+    if (systems.length === 0) {
+        systemList.innerHTML = `<div style="padding:8px; color:#64748b; font-size:11px; text-align:center;">No systems added</div>`;
+    } else {
+        systems.forEach((name, i) => {
+            const savedFeatures = Object.keys(tempSavedData[name] || {}).length;
+            const div = document.createElement("div");
+            div.className = "feature-item" + (savedFeatures > 0 ? " saved" : "");
+            
+            const span = document.createElement("span");
+            span.textContent = name + (savedFeatures > 0 ? ` (${savedFeatures})` : "");
+            
+            const renameBtn = document.createElement("button");
+            renameBtn.textContent = "✎";
+            renameBtn.title = "Rename system";
+            renameBtn.addEventListener("click", (e) => { e.stopPropagation(); window.renameSystem(i); });
+            
+            const delBtn = document.createElement("button");
+            delBtn.textContent = "×";
+            delBtn.className = "del";
+            delBtn.title = "Delete system";
+            delBtn.addEventListener("click", (e) => { e.stopPropagation(); window.deleteSystem(i); });
+            
+            div.append(span, renameBtn, delBtn);
+            systemList.appendChild(div);
+        });
+    }
     const currentVal = systemSelect.value;
     systemSelect.innerHTML = '<option value="">— select —</option>';
-    systems.forEach(name => {
-        const opt = document.createElement("option");
-        opt.value = name;
-        opt.textContent = name;
-        systemSelect.appendChild(opt);
-    });
+    systems.forEach(name => { const opt=document.createElement("option"); opt.value=name; opt.textContent=name; systemSelect.appendChild(opt); });
     if (systems.includes(currentVal)) systemSelect.value = currentVal;
 }
 
-// ── Render feature list ────────────────────────────────────────────────
 function renderFeatureList() {
     featureList.innerHTML = "";
-    features.forEach((f, i) => {
-        const div = document.createElement("div");
+    if (features.length === 0) {
+        featureList.innerHTML = `<div style="padding:8px; color:#64748b; font-size:11px; text-align:center;">No features added</div>`;
+    } else {
         const activeSystemData = getActiveSystemData() || {};
-        const type = getFeatureType(f);
-        const typeIcons = { plot: '📊', manual_value: '🔢', gaussian: '∿' };
-        div.className = "feature-item" + (activeSystemData[f] ? " saved" : "");
-        div.innerHTML = `
-            <span>${typeIcons[type]} ${f}</span>
-            <button onclick="renameFeature(${i})" title="Rename">✎</button>
-            <button class="del" onclick="deleteFeature(${i})" title="Delete">×</button>
-        `;
-        featureList.appendChild(div);
-    });
-    
+        const typeIcons = { plot:'📊', manual_value:'🔢', gaussian:'∿' };
+        features.forEach((f, i) => {
+            const type = getFeatureType(f);
+            const div = document.createElement("div");
+            div.className = "feature-item" + (activeSystemData[f] ? " saved" : "");
+            
+            const span = document.createElement("span");
+            span.textContent = `${typeIcons[type] || ''} ${f}`;
+            
+            const renameBtn = document.createElement("button");
+            renameBtn.textContent = "✎";
+            renameBtn.title = "Rename feature";
+            renameBtn.addEventListener("click", (e) => { e.stopPropagation(); window.renameFeature(i); });
+            
+            const delBtn = document.createElement("button");
+            delBtn.textContent = "×";
+            delBtn.className = "del";
+            delBtn.title = "Delete feature";
+            delBtn.addEventListener("click", (e) => { e.stopPropagation(); window.deleteFeature(i); });
+            
+            div.append(span, renameBtn, delBtn);
+            featureList.appendChild(div);
+        });
+    }
     const currentVal = featureSelect.value;
     featureSelect.innerHTML = '<option value="">— select —</option>';
     features.forEach(f => {
-        const opt = document.createElement("option");
-        opt.value = f;
+        const opt=document.createElement("option"); opt.value=f;
         const activeSystemData = getActiveSystemData() || {};
         opt.textContent = f + (activeSystemData[f] ? " ✓" : "");
         featureSelect.appendChild(opt);
     });
     if (features.includes(currentVal)) featureSelect.value = currentVal;
-    
     updateSavedCount();
 }
 
@@ -821,174 +825,95 @@ window.renameSystem = function(idx) {
     const newName = prompt("Rename system:", oldName);
     if (newName && newName.trim() && newName !== oldName) {
         const trimmed = newName.trim();
-        if (systems.map(s=>s.toLowerCase()).includes(trimmed.toLowerCase())) {
-            toast("System name already exists.", "error"); return;
-        }
-        if (tempSavedData[oldName]) {
-            tempSavedData[trimmed] = tempSavedData[oldName];
-            delete tempSavedData[oldName];
-        }
-        systems[idx] = trimmed;
-        renderSystemList();
-        renderFeatureList();
-        if (systemSelect.value === oldName) systemSelect.value = trimmed;
+        if (systems.map(s=>s.toLowerCase()).includes(trimmed.toLowerCase())) { toast("System name already exists.","error"); return; }
+        if (tempSavedData[oldName]) { tempSavedData[trimmed]=tempSavedData[oldName]; delete tempSavedData[oldName]; }
+        systems[idx]=trimmed;
+        renderSystemList(); renderFeatureList();
+        if (systemSelect.value===oldName) systemSelect.value=trimmed;
         updateSavedCount();
-        toast(`Renamed system to "${trimmed}"`, "success");
+        toast(`Renamed system to "${trimmed}"`);
     }
 };
-
 window.deleteSystem = function(idx) {
     const name = systems[idx];
     if (confirm(`Delete system "${name}"?`)) {
-        delete tempSavedData[name];
-        systems.splice(idx, 1);
-        if (systemSelect.value === name) systemSelect.value = "";
-        renderSystemList();
-        renderFeatureList();
-        loadSelectedFeatureMetadata();
-        updateSavedCount();
-        toast(`Deleted system "${name}"`, "warning");
+        delete tempSavedData[name]; systems.splice(idx,1);
+        if (systemSelect.value===name) systemSelect.value="";
+        renderSystemList(); renderFeatureList(); loadSelectedFeatureMetadata(); updateSavedCount();
+        toast(`Deleted system "${name}"`,"warning");
     }
 };
-
 window.renameFeature = function(idx) {
     const oldName = features[idx];
     const newName = prompt("Rename feature:", oldName);
     if (newName && newName.trim() && newName !== oldName) {
         const trimmed = newName.trim();
-        if (features.map(f => f.toLowerCase()).includes(trimmed.toLowerCase())) {
-            toast("Feature name already exists.", "error"); return;
-        }
-        Object.values(tempSavedData).forEach(systemData => {
-            if (systemData[oldName]) { systemData[trimmed] = systemData[oldName]; delete systemData[oldName]; }
-        });
-        if (featureMetadata[oldName]) {
-            featureMetadata[trimmed] = featureMetadata[oldName];
-            delete featureMetadata[oldName];
-            saveFeatureMetadataToStorage();
-        }
-        if (featureTypes[oldName]) {
-            featureTypes[trimmed] = featureTypes[oldName];
-            delete featureTypes[oldName];
-            saveFeatureTypesToStorage();
-        }
-        features[idx] = trimmed;
-        saveFeaturesToStorage();
-        renderFeatureList();
-        loadSelectedFeatureMetadata();
-        updateFeatureTypeUI();
-        toast(`Renamed to "${trimmed}"`, "success");
+        if (features.map(f=>f.toLowerCase()).includes(trimmed.toLowerCase())) { toast("Feature name already exists.","error"); return; }
+        Object.values(tempSavedData).forEach(sd=>{if(sd[oldName]){sd[trimmed]=sd[oldName];delete sd[oldName];}});
+        if (featureMetadata[oldName]) { featureMetadata[trimmed]=featureMetadata[oldName]; delete featureMetadata[oldName]; saveFeatureMetadataToStorage(); }
+        if (featureTypes[oldName])    { featureTypes[trimmed]=featureTypes[oldName]; delete featureTypes[oldName]; saveFeatureTypesToStorage(); }
+        features[idx]=trimmed; saveFeaturesToStorage();
+        renderFeatureList(); loadSelectedFeatureMetadata(); updateFeatureTypeUI();
+        toast(`Renamed to "${trimmed}"`);
     }
 };
-
 window.deleteFeature = function(idx) {
     const name = features[idx];
     if (confirm(`Delete feature "${name}"?`)) {
-        Object.values(tempSavedData).forEach(systemData => delete systemData[name]);
-        delete featureMetadata[name];
-        delete featureTypes[name];
-        features.splice(idx, 1);
-        saveFeaturesToStorage();
-        saveFeatureMetadataToStorage();
-        saveFeatureTypesToStorage();
-        renderFeatureList();
-        loadSelectedFeatureMetadata();
-        updateFeatureTypeUI();
-        toast(`Deleted "${name}"`, "warning");
+        Object.values(tempSavedData).forEach(sd=>delete sd[name]);
+        delete featureMetadata[name]; delete featureTypes[name];
+        features.splice(idx,1);
+        saveFeaturesToStorage(); saveFeatureMetadataToStorage(); saveFeatureTypesToStorage();
+        renderFeatureList(); loadSelectedFeatureMetadata(); updateFeatureTypeUI();
+        toast(`Deleted "${name}"`,"warning");
     }
 };
 
 function updateSavedCount() {
-    const count = Object.values(tempSavedData).reduce((total, systemData) => total + Object.keys(systemData).length, 0);
-    savedCount.textContent = count;
-    masterCount.textContent = pdfFilename ? 1 : 0;
+    const count = Object.values(tempSavedData).reduce((t,sd)=>t+Object.keys(sd).length,0);
+    savedCount.textContent=count; masterCount.textContent=pdfFilename?1:0;
 }
 
 function buildPointsMap() {
-    const pointMap = {};
-    points.forEach(p => {
-        const x = Number(p.x_real.toFixed(6));
-        const y = Number(p.y_real.toFixed(6));
-        pointMap[String(x)] = String(y);
-    });
+    const pointMap={};
+    points.forEach(p=>{pointMap[Number(p.x_real.toFixed(6))]=String(Number(p.y_real.toFixed(6)));});
     return pointMap;
 }
 
 function loadPointsFromMap(pointMap) {
-    if (!calib.valid || !pointMap) {
-        points = [];
-        selectedPointIndex = -1;
-        updateTable();
-        updateStatus();
-        redraw();
-        return;
-    }
-
-    points = Object.entries(pointMap).map(([xStr, yStr]) => {
-        const xReal = parseFloat(xStr);
-        const yReal = parseFloat(yStr);
-        const xImg = (xReal - calib.b) / calib.a;
-        const yImg = (yReal - calib.d) / calib.c;
-        return { x_img: xImg, y_img: yImg, x_real: xReal, y_real: yReal };
-    }).filter(p => isFinite(p.x_img) && isFinite(p.y_img) && isFinite(p.x_real) && isFinite(p.y_real));
-
-    selectedPointIndex = -1;
-    updateTable();
-    updateStatus();
-    redraw();
+    if (!calib.valid || !pointMap) { points=[]; selectedPointIndex=-1; updateTable(); updateStatus(); redraw(); return; }
+    points = Object.entries(pointMap).map(([xs,ys])=>{
+        const xr=parseFloat(xs), yr=parseFloat(ys);
+        return {x_img:(xr-calib.b)/calib.a, y_img:(yr-calib.d)/calib.c, x_real:xr, y_real:yr};
+    }).filter(p=>isFinite(p.x_img)&&isFinite(p.y_img)&&isFinite(p.x_real)&&isFinite(p.y_real));
+    selectedPointIndex=-1; updateTable(); updateStatus(); redraw();
 }
 
 function switchEditingContext() {
-    const systemName = systemSelect.value;
-    const featureName = featureSelect.value;
-    currentEditingKey = systemName && featureName ? `${systemName}::${featureName}` : "";
-
+    const sn=systemSelect.value, fn=featureSelect.value;
+    currentEditingKey = sn&&fn ? `${sn}::${fn}` : "";
     updateFeatureTypeUI();
-
-    const featureType = getActiveFeatureType();
-
-    if (featureType === 'manual_value') {
-        // Load manual value if saved
-        const systemData = tempSavedData[systemName] || {};
-        const featureData = systemData[featureName];
-        manualValueInput.value = featureData?.value != null ? featureData.value : '';
-        points = [];
-        selectedPointIndex = -1;
-        updateTable();
-        updateStatus();
-        redraw();
-        return;
+    const ft=getActiveFeatureType();
+    if (ft==='manual_value') {
+        const fd=(tempSavedData[sn]||{})[fn];
+        manualValueInput.value = fd?.value!=null ? fd.value : '';
+        points=[]; selectedPointIndex=-1; updateTable(); updateStatus(); redraw(); return;
     }
-
-    if (!calib.valid || !currentEditingKey) {
-        points = [];
-        selectedPointIndex = -1;
-        updateTable();
-        updateStatus();
-        redraw();
-        return;
-    }
-
-    const systemData = tempSavedData[systemName] || {};
-    const featureData = systemData[featureName];
-    loadPointsFromMap(featureData?.points || {});
-
-    if (featureType === 'gaussian') updateGaussianStats();
+    if (!calib.valid||!currentEditingKey) { points=[]; selectedPointIndex=-1; updateTable(); updateStatus(); redraw(); return; }
+    const fd=(tempSavedData[sn]||{})[fn];
+    loadPointsFromMap(fd?.points||{});
+    if (ft==='gaussian') updateGaussianStats();
 }
 
 function loadSelectedFeatureMetadata() {
-    const featureName = featureSelect.value;
-    if (!featureName || !featureMetadata[featureName]) {
-        xLabelInput.value = "";
-        yLabelInput.value = "";
-        return;
-    }
-    xLabelInput.value = featureMetadata[featureName].x_label || "";
-    yLabelInput.value = featureMetadata[featureName].y_label || "";
+    const fn=featureSelect.value;
+    if (!fn||!featureMetadata[fn]) { xLabelInput.value=""; yLabelInput.value=""; return; }
+    xLabelInput.value=featureMetadata[fn].x_label||"";
+    yLabelInput.value=featureMetadata[fn].y_label||"";
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  PDF LOADING & NAVIGATION
+//  PDF LOADING — CONTINUOUS MULTI-PAGE
 // ═══════════════════════════════════════════════════════════════════════
 
 loadPdfBtn.addEventListener("click", () => fileInput.click());
@@ -1008,196 +933,183 @@ pdfViewer.addEventListener("drop", e => {
 });
 
 async function loadPdfFile(file) {
-    tempSavedData = {};
-    systems = [];
-    updateSavedCount();
-    renderSystemList();
-    renderFeatureList();
-    closeDigitizer();
-    
+    tempSavedData = {}; systems = [];
+    updateSavedCount(); renderSystemList(); renderFeatureList(); closeDigitizer();
     try {
         const arrayBuffer = await file.arrayBuffer();
         pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        totalPages = pdfDoc.numPages;
-        currentPage = 1;
-        pdfFilename = file.name;
-        pdfZoom = 1.0;
+        totalPages = pdfDoc.numPages; currentPage = 1;
+        pdfFilename = file.name; pdfZoom = 1.0;
         filenameLabel.textContent = file.name;
-        
         dropOverlay.classList.add("hidden");
-        [prevPageBtn, nextPageBtn, zoomInBtn, zoomOutBtn, zoomFitBtn, snipBtn].forEach(b => b.disabled = false);
-        pdfViewer.style.cursor = "grab";
-        
-        await renderPage(currentPage);
+        [prevPageBtn,nextPageBtn,zoomInBtn,zoomOutBtn,zoomFitBtn,snipBtn].forEach(b=>b.disabled=false);
+        pdfViewer.style.cursor="grab";
+        await buildPages(); await renderAllPages();
+        pdfViewer.scrollTop = 0;
         toast(`Loaded "${file.name}" — ${totalPages} pages`, "success");
-    } catch (err) {
-        console.error(err);
-        toast("Failed to load PDF.", "error");
+    } catch(err) { console.error(err); toast("Failed to load PDF.", "error"); }
+}
+
+async function buildPages() {
+    pdfCanvasWrap.innerHTML = ""; pageCanvases = [];
+    for (let n=1; n<=totalPages; n++) {
+        const page = await pdfDoc.getPage(n);
+        const wrap = document.createElement("div"); wrap.className="pdf-page"; wrap.dataset.page=n;
+        const cv = document.createElement("canvas");
+        const badge = document.createElement("div"); badge.className="pdf-page-num"; badge.textContent="Page "+n;
+        wrap.append(cv,badge); pdfCanvasWrap.appendChild(wrap);
+        pageCanvases.push({wrap,canvas:cv,ctx:cv.getContext("2d"),page});
     }
 }
-
-async function renderPage(pageNum) {
+async function renderAllPages() {
     if (!pdfDoc) return;
-    const page = await pdfDoc.getPage(pageNum);
-    const viewport = page.getViewport({ scale: PDF_BASE_SCALE * pdfZoom });
-    pdfCanvas.width = viewport.width;
-    pdfCanvas.height = viewport.height;
-    await page.render({ canvasContext: pdfCtx, viewport }).promise;
+    const token = ++renderToken;
+    for (const pc of pageCanvases) {
+        if (token!==renderToken) return;
+        const vp = pc.page.getViewport({scale:PDF_BASE_SCALE*pdfZoom});
+        pc.canvas.width=vp.width; pc.canvas.height=vp.height;
+        await pc.page.render({canvasContext:pc.ctx,viewport:vp}).promise;
+    }
     updatePageIndicator();
 }
-
+function getCurrentVisiblePage() {
+    if (!pageCanvases.length) return 1;
+    const mid = pdfViewer.getBoundingClientRect().top + pdfViewer.clientHeight/2;
+    let best=1, bd=Infinity;
+    pageCanvases.forEach((pc,i)=>{const r=pc.wrap.getBoundingClientRect(); const d=Math.abs(r.top+r.height/2-mid); if(d<bd){bd=d;best=i+1;}});
+    return best;
+}
+function scrollToPage(n) {
+    const pc=pageCanvases[n-1]; if(!pc) return;
+    const wr=pc.wrap.getBoundingClientRect(), vr=pdfViewer.getBoundingClientRect();
+    pdfViewer.scrollTop += (wr.top-vr.top)-16;
+}
 function updatePageIndicator() {
-    pageIndicator.textContent = `Page ${currentPage}/${totalPages} • ${Math.round(pdfZoom * 100)}%`;
-    prevPageBtn.disabled = currentPage <= 1;
-    nextPageBtn.disabled = currentPage >= totalPages;
+    pageIndicator.textContent = `Page ${currentPage}/${totalPages} • ${Math.round(pdfZoom*100)}%`;
+    prevPageBtn.disabled=currentPage<=1; nextPageBtn.disabled=currentPage>=totalPages;
 }
 
-prevPageBtn.addEventListener("click", async () => { if (currentPage > 1) { currentPage--; await renderPage(currentPage); } });
-nextPageBtn.addEventListener("click", async () => { if (currentPage < totalPages) { currentPage++; await renderPage(currentPage); } });
-zoomInBtn.addEventListener("click", async () => { pdfZoom = Math.min(3, pdfZoom + 0.25); await renderPage(currentPage); });
-zoomOutBtn.addEventListener("click", async () => { pdfZoom = Math.max(0.5, pdfZoom - 0.25); await renderPage(currentPage); });
-zoomFitBtn.addEventListener("click", async () => {
+pdfViewer.addEventListener("scroll", ()=>{
     if (!pdfDoc) return;
-    const page = await pdfDoc.getPage(currentPage);
-    const vp = page.getViewport({ scale: 1 });
-    const containerWidth = pdfViewer.clientWidth - 30;
-    pdfZoom = containerWidth / (vp.width * PDF_BASE_SCALE);
-    await renderPage(currentPage);
+    const p=getCurrentVisiblePage();
+    if (p!==currentPage){currentPage=p; updatePageIndicator();}
+});
+prevPageBtn.addEventListener("click", ()=>{currentPage=getCurrentVisiblePage(); if(currentPage>1){currentPage--;scrollToPage(currentPage);updatePageIndicator();}});
+nextPageBtn.addEventListener("click", ()=>{currentPage=getCurrentVisiblePage(); if(currentPage<totalPages){currentPage++;scrollToPage(currentPage);updatePageIndicator();}});
+
+async function rezoomKeepingPage(){const a=getCurrentVisiblePage(); await renderAllPages(); requestAnimationFrame(()=>scrollToPage(a));}
+zoomInBtn.addEventListener("click", async()=>{pdfZoom=Math.min(6,pdfZoom+0.25); await rezoomKeepingPage();});
+zoomOutBtn.addEventListener("click", async()=>{pdfZoom=Math.max(0.5,pdfZoom-0.25); await rezoomKeepingPage();});
+zoomFitBtn.addEventListener("click", async()=>{
+    if(!pdfDoc)return; const a=getCurrentVisiblePage(), pg=await pdfDoc.getPage(a), vp=pg.getViewport({scale:1});
+    pdfZoom=(pdfViewer.clientWidth-30)/(vp.width*PDF_BASE_SCALE);
+    await renderAllPages(); requestAnimationFrame(()=>scrollToPage(a));
 });
 
 // ═══════════════════════════════════════════════════════════════════════
-//  SNIP TOOL
+//  PDF VIEWER ENHANCEMENTS: RIGHT-CLICK DRAG + CTRL+SCROLL ZOOM
 // ═══════════════════════════════════════════════════════════════════════
 
-snipBtn.addEventListener("click", () => {
-    if (!pdfDoc) { toast("Load a PDF first.", "warning"); return; }
-    snipMode = !snipMode;
-    snipBtn.classList.toggle("active", snipMode);
-    snipBtn.textContent = snipMode ? "✂ Snipping..." : "✂ Snip";
-    pdfViewer.style.cursor = snipMode ? "crosshair" : "grab";
-});
+pdfViewer.addEventListener("contextmenu", e => { e.preventDefault(); });
 
 pdfViewer.addEventListener("mousedown", e => {
-    if (!snipMode || !pdfDoc || e.button !== 0) return;
-    const rect = pdfViewer.getBoundingClientRect();
-    snipStart = { x: e.clientX - rect.left + pdfViewer.scrollLeft, y: e.clientY - rect.top + pdfViewer.scrollTop };
-    snipDragging = true;
-    snipRect.style.display = "block";
-    snipRect.style.left = snipStart.x + "px";
-    snipRect.style.top = snipStart.y + "px";
-    snipRect.style.width = "0"; snipRect.style.height = "0";
-    e.preventDefault();
-});
-
-pdfViewer.addEventListener("mousemove", e => {
-    if (!snipDragging) return;
-    const rect = pdfViewer.getBoundingClientRect();
-    const cx = e.clientX - rect.left + pdfViewer.scrollLeft;
-    const cy = e.clientY - rect.top + pdfViewer.scrollTop;
-    const x = Math.min(snipStart.x, cx), y = Math.min(snipStart.y, cy);
-    snipRect.style.left = x + "px"; snipRect.style.top = y + "px";
-    snipRect.style.width = Math.abs(cx - snipStart.x) + "px";
-    snipRect.style.height = Math.abs(cy - snipStart.y) + "px";
-});
-
-pdfViewer.addEventListener("mouseup", e => {
-    if (!snipDragging) return;
-    snipDragging = false;
-    snipRect.style.display = "none";
-    snipMode = false;
-    snipBtn.classList.remove("active");
-    snipBtn.textContent = "✂ Snip";
-    pdfViewer.style.cursor = "grab";
-
-    const sx = parseFloat(snipRect.style.left);
-    const sy = parseFloat(snipRect.style.top);
-    const sw = parseFloat(snipRect.style.width);
-    const sh = parseFloat(snipRect.style.height);
-
-    if (sw < 20 || sh < 20) { toast("Selection too small.", "warning"); return; }
-
-    const canvasRect = pdfCanvas.getBoundingClientRect();
-    const viewerRect = pdfViewer.getBoundingClientRect();
-    const canvasOffsetX = canvasRect.left - viewerRect.left + pdfViewer.scrollLeft;
-    const canvasOffsetY = canvasRect.top - viewerRect.top + pdfViewer.scrollTop;
-    const displayScale = pdfCanvas.clientWidth / pdfCanvas.width;
-
-    const cx0 = Math.max(0, Math.round((sx - canvasOffsetX) / displayScale));
-    const cy0 = Math.max(0, Math.round((sy - canvasOffsetY) / displayScale));
-    const cx1 = Math.min(pdfCanvas.width, cx0 + Math.round(sw / displayScale));
-    const cy1 = Math.min(pdfCanvas.height, cy0 + Math.round(sh / displayScale));
-
-    if (cx1 - cx0 < 10 || cy1 - cy0 < 10) { toast("Selection out of bounds.", "warning"); return; }
-
-    const offC = document.createElement("canvas");
-    offC.width = cx1 - cx0; offC.height = cy1 - cy0;
-    offC.getContext("2d").drawImage(pdfCanvas, cx0, cy0, cx1-cx0, cy1-cy0, 0, 0, cx1-cx0, cy1-cy0);
-
-    const img = new Image();
-    img.onload = () => { receiveImage(img); toast("Plot snipped! Click 4 axis points.", "success", 3000); };
-    img.src = offC.toDataURL("image/png");
-});
-
-// ═══════════════════════════════════════════════════════════════════════
-//  PDF VIEWER — PAN (right-click drag) & ZOOM (Ctrl+scroll)
-// ═══════════════════════════════════════════════════════════════════════
-
-let pdfPanActive = false;
-let pdfPanOrigin = { x: 0, y: 0 };
-let pdfScrollOrigin = { left: 0, top: 0 };
-
-// Right-click drag → pan
-pdfViewer.addEventListener("mousedown", e => {
-    if (e.button !== 2 || !pdfDoc) return;
-    pdfPanActive = true;
-    pdfPanOrigin   = { x: e.clientX, y: e.clientY };
-    pdfScrollOrigin = { left: pdfViewer.scrollLeft, top: pdfViewer.scrollTop };
-    pdfViewer.style.cursor = "grabbing";
-    e.preventDefault();
+    if (!pdfDoc) return;
+    // Right-click → pan
+    if (e.button === 2) {
+        pdfPanActive = true;
+        pdfPanOrigin = {x:e.clientX, y:e.clientY};
+        pdfScrollOrigin = {left:pdfViewer.scrollLeft, top:pdfViewer.scrollTop};
+        pdfViewer.style.cursor = "grabbing";
+        e.preventDefault(); return;
+    }
+    // Left-click + snip mode
+    if (e.button === 0 && snipMode) {
+        const rect = pdfViewer.getBoundingClientRect();
+        snipStart = {x:e.clientX-rect.left+pdfViewer.scrollLeft, y:e.clientY-rect.top+pdfViewer.scrollTop};
+        snipDragging = true;
+        snipRect.style.display = "block"; snipRect.style.left=snipStart.x+"px"; snipRect.style.top=snipStart.y+"px";
+        snipRect.style.width="0"; snipRect.style.height="0";
+        e.preventDefault();
+    }
 });
 
 document.addEventListener("mousemove", e => {
-    if (!pdfPanActive) return;
-    pdfViewer.scrollLeft = pdfScrollOrigin.left - (e.clientX - pdfPanOrigin.x);
-    pdfViewer.scrollTop  = pdfScrollOrigin.top  - (e.clientY - pdfPanOrigin.y);
+    if (pdfPanActive) {
+        pdfViewer.scrollLeft = pdfScrollOrigin.left - (e.clientX-pdfPanOrigin.x);
+        pdfViewer.scrollTop  = pdfScrollOrigin.top  - (e.clientY-pdfPanOrigin.y);
+        return;
+    }
+    if (snipDragging && snipStart) {
+        const rect=pdfViewer.getBoundingClientRect();
+        const cx=e.clientX-rect.left+pdfViewer.scrollLeft, cy=e.clientY-rect.top+pdfViewer.scrollTop;
+        const x=Math.min(snipStart.x,cx), y=Math.min(snipStart.y,cy);
+        snipRect.style.left=x+"px"; snipRect.style.top=y+"px";
+        snipRect.style.width=Math.abs(cx-snipStart.x)+"px"; snipRect.style.height=Math.abs(cy-snipStart.y)+"px";
+    }
 });
 
 document.addEventListener("mouseup", e => {
-    if (e.button !== 2 || !pdfPanActive) return;
-    pdfPanActive = false;
-    pdfViewer.style.cursor = snipMode ? "crosshair" : (pdfDoc ? "grab" : "default");
+    if (pdfPanActive && e.button===2) {
+        pdfPanActive = false;
+        pdfViewer.style.cursor = snipMode ? "crosshair" : (pdfDoc?"grab":"default");
+        return;
+    }
+    if (snipDragging && e.button===0) {
+        snipDragging = false; snipRect.style.display = "none";
+        snipMode = false; snipBtn.classList.remove("active"); snipBtn.textContent = "✂ Snip";
+        pdfViewer.style.cursor = pdfDoc ? "grab" : "default";
+
+        const sx=parseFloat(snipRect.style.left), sy=parseFloat(snipRect.style.top);
+        const sw=parseFloat(snipRect.style.width), sh=parseFloat(snipRect.style.height);
+        if (sw<20||sh<20) { toast("Selection too small.","warning"); return; }
+
+        // Find which page canvas the snip center falls on
+        const vr=pdfViewer.getBoundingClientRect();
+        const selCx=sx+sw/2, selCy=sy+sh/2;
+        let target=null;
+        for (const pc of pageCanvases) {
+            const r=pc.canvas.getBoundingClientRect();
+            const l=r.left-vr.left+pdfViewer.scrollLeft, t=r.top-vr.top+pdfViewer.scrollTop;
+            if (selCx>=l && selCx<=l+r.width && selCy>=t && selCy<=t+r.height) { target={pc,left:l,top:t}; break; }
+        }
+        if (!target) { toast("Snip a region inside a page.","warning"); return; }
+
+        const cv=target.pc.canvas, ds=cv.clientWidth/cv.width;
+        const cx0=Math.max(0,Math.round((sx-target.left)/ds)), cy0=Math.max(0,Math.round((sy-target.top)/ds));
+        const cx1=Math.min(cv.width,cx0+Math.round(sw/ds)), cy1=Math.min(cv.height,cy0+Math.round(sh/ds));
+        if (cx1-cx0<10||cy1-cy0<10) { toast("Selection out of bounds.","warning"); return; }
+
+        const offC=document.createElement("canvas"); offC.width=cx1-cx0; offC.height=cy1-cy0;
+        offC.getContext("2d").drawImage(cv,cx0,cy0,cx1-cx0,cy1-cy0,0,0,cx1-cx0,cy1-cy0);
+        const img=new Image();
+        img.onload=()=>{receiveImage(img); toast("Plot snipped! Click 4 axis points.","success",3000);};
+        img.src=offC.toDataURL("image/png");
+    }
 });
 
-// Suppress context menu inside the viewer so right-click can pan freely
-pdfViewer.addEventListener("contextmenu", e => e.preventDefault());
-
-// Ctrl+scroll → zoom toward cursor
+// Ctrl+Scroll zoom
 pdfViewer.addEventListener("wheel", async e => {
     if (!pdfDoc || !e.ctrlKey) return;
     e.preventDefault();
+    const old=pdfZoom;
+    const zf=e.deltaY<0?1.15:1/1.15;
+    pdfZoom=Math.max(0.25,Math.min(5,pdfZoom*zf));
+    if (pdfZoom===old) return;
 
-    // Viewport-relative cursor position inside the viewer
-    const viewerRect    = pdfViewer.getBoundingClientRect();
-    const cx = e.clientX - viewerRect.left;
-    const cy = e.clientY - viewerRect.top;
+    const vr=pdfViewer.getBoundingClientRect(), cx=e.clientX-vr.left, cy=e.clientY-vr.top;
+    const cpx=pdfViewer.scrollLeft+cx, cpy=pdfViewer.scrollTop+cy;
+    await renderAllPages();
+    const ratio=pdfZoom/old;
+    pdfViewer.scrollLeft=cpx*ratio-cx; pdfViewer.scrollTop=cpy*ratio-cy;
+}, {passive:false});
 
-    // Capture scroll before the async re-render
-    const prevScrollLeft = pdfViewer.scrollLeft;
-    const prevScrollTop  = pdfViewer.scrollTop;
-    const prevZoom       = pdfZoom;
-
-    const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
-    pdfZoom = Math.max(0.25, Math.min(5, pdfZoom * factor));
-    if (pdfZoom === prevZoom) return;
-
-    await renderPage(currentPage);
-
-    // Keep the canvas point that was under the cursor stationary.
-    // Formula: newScroll = (cursor + oldScroll) * ratio − cursor
-    const ratio = pdfZoom / prevZoom;
-    pdfViewer.scrollLeft = (cx + prevScrollLeft) * ratio - cx;
-    pdfViewer.scrollTop  = (cy + prevScrollTop)  * ratio - cy;
-}, { passive: false });
+snipBtn.addEventListener("click", () => {
+    if (!pdfDoc) { toast("Load a PDF first.","warning"); return; }
+    snipMode = !snipMode;
+    snipBtn.classList.toggle("active",snipMode);
+    snipBtn.textContent = snipMode ? "✂ Snipping..." : "✂ Snip";
+    pdfViewer.style.cursor = snipMode ? "crosshair" : "grab";
+});
 
 // ═══════════════════════════════════════════════════════════════════════
 //  DIGITIZER CORE
@@ -1206,482 +1118,129 @@ pdfViewer.addEventListener("wheel", async e => {
 function d2i(dx,dy) { return { x:(dx-T.offsetX)/T.scale, y:(dy-T.offsetY)/T.scale }; }
 function i2d(ix,iy) { return { x:ix*T.scale+T.offsetX, y:iy*T.scale+T.offsetY }; }
 
-function resizeCanvas() {
-    const w = $("canvasWrap");
-    canvas.width = w.clientWidth;
-    canvas.height = w.clientHeight;
-    redraw();
-}
+function resizeCanvas() { const w=$("canvasWrap"); canvas.width=w.clientWidth; canvas.height=w.clientHeight; redraw(); }
 window.addEventListener("resize", resizeCanvas);
 
 function redraw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
     if (!sourceImage) return;
-
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(sourceImage, T.offsetX, T.offsetY, sourceImage.width * T.scale, sourceImage.height * T.scale);
-
-    // Calibration crosshairs
-    calibClicks.forEach((p, i) => {
-        const d = i2d(p.x, p.y);
-        drawCross(d.x, d.y, "#60a5fa", 14, ["X_min","X_max","Y_min","Y_max"][i]);
-    });
-
+    ctx.imageSmoothingEnabled=true;
+    ctx.drawImage(sourceImage,T.offsetX,T.offsetY,sourceImage.width*T.scale,sourceImage.height*T.scale);
+    calibClicks.forEach((p,i)=>{const d=i2d(p.x,p.y); drawCross(d.x,d.y,"#60a5fa",14,["X_min","X_max","Y_min","Y_max"][i]);});
     drawSavedSystemOverlays();
-
-    // Gaussian curve overlay (drawn before points so points appear on top)
-    if (getActiveFeatureType() === 'gaussian' && calib.valid && points.length >= 2) {
-        const g = computeGaussian();
-        if (g && g.std) {
-            drawGaussianCurve(g.mean, g.std, points[0].y_real);
-        }
-    }
-
-    // Active editable points
-    const isGaussianMode = getActiveFeatureType() === 'gaussian';
-    points.forEach((p, i) => {
-        const d = i2d(p.x_img, p.y_img);
-        const isSelected = i === selectedPointIndex;
-        const isPeak = isGaussianMode && i === 0;
-
-        const activeColor = isPeak ? '#fbbf24' : getSystemColor(systemSelect.value);
-
-        ctx.beginPath();
-        ctx.arc(d.x, d.y, isSelected ? pointRadius + 2 : (isPeak ? pointRadius + 1 : pointRadius), 0, Math.PI * 2);
-        ctx.fillStyle = isSelected ? "#ffffff" : activeColor;
-        ctx.fill();
-        ctx.strokeStyle = isSelected ? activeColor : (isPeak ? '#fff' : "#fff");
-        ctx.lineWidth = isSelected ? 2.5 : (isPeak ? 2 : 1.5);
-        ctx.stroke();
-
-        ctx.fillStyle = isPeak ? '#fbbf24' : "#fff";
-        ctx.font = isPeak ? "bold 11px sans-serif" : "bold 10px sans-serif";
-        ctx.fillText(isPeak ? "μ" : String(i + 1), d.x + 8, d.y - 8);
+    if (getActiveFeatureType()==='gaussian'&&calib.valid&&points.length>=2){const g=computeGaussian();if(g&&g.std)drawGaussianCurve(g.mean,g.std,points[0].y_real);}
+    const isG=getActiveFeatureType()==='gaussian';
+    points.forEach((p,i)=>{
+        const d=i2d(p.x_img,p.y_img), sel=i===selectedPointIndex, pk=isG&&i===0;
+        const col=pk?'#fbbf24':getSystemColor(systemSelect.value);
+        ctx.beginPath(); ctx.arc(d.x,d.y,sel?pointRadius+2:(pk?pointRadius+1:pointRadius),0,Math.PI*2);
+        ctx.fillStyle=sel?"#ffffff":col; ctx.fill();
+        ctx.strokeStyle=sel?col:(pk?'#fff':"#fff"); ctx.lineWidth=sel?2.5:(pk?2:1.5); ctx.stroke();
+        ctx.fillStyle=pk?'#fbbf24':"#fff"; ctx.font=pk?"bold 11px sans-serif":"bold 10px sans-serif";
+        ctx.fillText(pk?"μ":String(i+1),d.x+8,d.y-8);
     });
 }
 
-function drawGaussianCurve(mean, std, peakY) {
+function drawGaussianCurve(mean,std,peakY) {
     if (!calib.valid) return;
-    const xMin = mean - 3.5 * std;
-    const xMax = mean + 3.5 * std;
-    const steps = 120;
-
-    ctx.save();
-    ctx.strokeStyle = 'rgba(251, 191, 36, 0.75)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([]);
-    ctx.beginPath();
-
-    for (let i = 0; i <= steps; i++) {
-        const xReal = xMin + (i / steps) * (xMax - xMin);
-        const yReal = peakY * Math.exp(-0.5 * Math.pow((xReal - mean) / std, 2));
-        const xImg = (xReal - calib.b) / calib.a;
-        const yImg = (yReal - calib.d) / calib.c;
-        const d = i2d(xImg, yImg);
-        if (i === 0) ctx.moveTo(d.x, d.y);
-        else ctx.lineTo(d.x, d.y);
-    }
+    const xMin=mean-3.5*std, xMax=mean+3.5*std, steps=120;
+    ctx.save(); ctx.strokeStyle='rgba(251,191,36,0.75)'; ctx.lineWidth=2; ctx.setLineDash([]); ctx.beginPath();
+    for (let i=0;i<=steps;i++){const xR=xMin+(i/steps)*(xMax-xMin), yR=peakY*Math.exp(-0.5*Math.pow((xR-mean)/std,2)); const d=i2d((xR-calib.b)/calib.a,(yR-calib.d)/calib.c); i===0?ctx.moveTo(d.x,d.y):ctx.lineTo(d.x,d.y);}
     ctx.stroke();
-
-    // Mean vertical dashed line
-    const meanXImg = (mean - calib.b) / calib.a;
-    const topD = i2d(meanXImg, -100);
-    const botD = i2d(meanXImg, (sourceImage ? sourceImage.height + 100 : 9999));
-    ctx.strokeStyle = 'rgba(251, 191, 36, 0.35)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    ctx.moveTo(topD.x, topD.y);
-    ctx.lineTo(botD.x, botD.y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
+    const mx=(mean-calib.b)/calib.a, td=i2d(mx,-100), bd=i2d(mx,(sourceImage?sourceImage.height+100:9999));
+    ctx.strokeStyle='rgba(251,191,36,0.35)'; ctx.lineWidth=1; ctx.setLineDash([5,5]); ctx.beginPath(); ctx.moveTo(td.x,td.y); ctx.lineTo(bd.x,bd.y); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
 }
 
-function drawCross(x, y, color, size, label) {
-    ctx.strokeStyle = color; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(x-size,y); ctx.lineTo(x+size,y); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x,y-size); ctx.lineTo(x,y+size); ctx.stroke();
-    if (label) { ctx.fillStyle = color; ctx.font = "bold 11px sans-serif"; ctx.fillText(label, x+10, y-10); }
-}
+function drawCross(x,y,color,size,label){ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x-size,y);ctx.lineTo(x+size,y);ctx.stroke();ctx.beginPath();ctx.moveTo(x,y-size);ctx.lineTo(x,y+size);ctx.stroke();if(label){ctx.fillStyle=color;ctx.font="bold 11px sans-serif";ctx.fillText(label,x+10,y-10);}}
 
 function drawSavedSystemOverlays() {
     if (!calib.valid) return;
-    const activeFeature = featureSelect.value;
-    if (!activeFeature) return;
-
-    systems.forEach(systemName => {
-        const systemData = tempSavedData[systemName];
-        const featureData = systemData && systemData[activeFeature];
-        if (!featureData || !featureData.points) return;
-        if (systemName === systemSelect.value) return;
-
-        const color = getSystemColor(systemName);
-        Object.entries(featureData.points).forEach(([xStr, yStr], idx) => {
-            const xReal = parseFloat(xStr);
-            const yReal = parseFloat(yStr);
-            if (!isFinite(xReal) || !isFinite(yReal)) return;
-            const xImg = (xReal - calib.b) / calib.a;
-            const yImg = (yReal - calib.d) / calib.c;
-            const d = i2d(xImg, yImg);
-            ctx.beginPath();
-            ctx.arc(d.x, d.y, Math.max(2, pointRadius - 1), 0, Math.PI * 2);
-            ctx.fillStyle = color;
-            ctx.globalAlpha = 0.8;
-            ctx.fill();
-            ctx.globalAlpha = 1;
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 1.2;
-            ctx.stroke();
-            ctx.fillStyle = color;
-            ctx.font = "10px sans-serif";
-            ctx.fillText(systemName, d.x + 6, d.y + 12 + (idx % 2) * 10);
-        });
+    const af=featureSelect.value; if(!af)return;
+    systems.forEach(systemName=>{
+        const fd=tempSavedData[systemName]?.[af];
+        if(!fd||!fd.points||systemName===systemSelect.value)return;
+        const col=getSystemColor(systemName);
+        Object.entries(fd.points).forEach(([xs,ys],idx)=>{const xr=parseFloat(xs),yr=parseFloat(ys); if(!isFinite(xr)||!isFinite(yr))return; const d=i2d((xr-calib.b)/calib.a,(yr-calib.d)/calib.c); ctx.beginPath();ctx.arc(d.x,d.y,Math.max(2,pointRadius-1),0,Math.PI*2);ctx.fillStyle=col;ctx.globalAlpha=0.8;ctx.fill();ctx.globalAlpha=1;ctx.strokeStyle=col;ctx.lineWidth=1.2;ctx.stroke();ctx.fillStyle=col;ctx.font="10px sans-serif";ctx.fillText(systemName,d.x+6,d.y+12+(idx%2)*10);});
     });
 }
 
 function updateStatus() {
-    modeIndicator.className = "";
-    modeIndicator.textContent = "";
-    
-    if (appState === "calibration") {
-        statusText.textContent = `Click point ${calibClicks.length+1}/4: ${["X_min","X_max","Y_min","Y_max"][calibClicks.length]}`;
-        modeIndicator.textContent = "CALIBRATION";
-        modeIndicator.className = "calibration";
-    } else if (appState === "calibration_form") {
-        statusText.textContent = "Enter axis values and confirm";
-        modeIndicator.textContent = "CALIBRATION";
-        modeIndicator.className = "calibration";
-    } else if (appState === "digitization") {
-        const fType = getActiveFeatureType();
-        if (fType === 'gaussian') {
-            if (points.length === 0) {
-                statusText.textContent = "Gaussian: click the PEAK of the distribution first (= μ)";
-            } else {
-                const g = computeGaussian();
-                const stdTxt = g?.std != null ? `  σ≈${g.std.toFixed(4)}` : '  (need more pts for σ)';
-                statusText.textContent = `Gaussian: ${points.length} pts  μ≈${g?.mean?.toFixed(4)}${stdTxt}`;
-            }
-            modeIndicator.textContent = "GAUSSIAN";
-            modeIndicator.className = "gaussian";
-        } else if (fType === 'manual_value') {
-            statusText.textContent = "Manual value feature — enter value in the right pane";
-            modeIndicator.textContent = "MANUAL";
-            modeIndicator.className = "edit";
-        } else {
-            statusText.textContent = `${points.length} points • Left-click to add • Ctrl+Z undo • Scroll to zoom`;
-            modeIndicator.textContent = "DIGITIZING";
-            modeIndicator.className = "digitization";
-        }
-    } else if (appState === "edit") {
-        statusText.textContent = "Click point to select • Drag to move • Right-click for options";
-        modeIndicator.textContent = "EDIT MODE";
-        modeIndicator.className = "edit";
-    } else {
-        statusText.textContent = sourceImage ? "Ready" : "Snip a plot from the PDF";
+    modeIndicator.className=""; modeIndicator.textContent="";
+    if (appState==="calibration") { statusText.textContent=`Click point ${calibClicks.length+1}/4: ${["X_min","X_max","Y_min","Y_max"][calibClicks.length]}`; modeIndicator.textContent="CALIBRATION"; modeIndicator.className="calibration"; }
+    else if (appState==="calibration_form") { statusText.textContent="Enter axis values and confirm"; modeIndicator.textContent="CALIBRATION"; modeIndicator.className="calibration"; }
+    else if (appState==="digitization") {
+        const fType=getActiveFeatureType();
+        if (fType==='gaussian') { if(points.length===0)statusText.textContent="Gaussian: click the PEAK of the distribution first (= μ)"; else{const g=computeGaussian();const stdTxt=g?.std!=null?`  σ≈${g.std.toFixed(4)}`:'  (need more pts)';statusText.textContent=`Gaussian: ${points.length} pts  μ≈${g?.mean?.toFixed(4)}${stdTxt}`;} modeIndicator.textContent="GAUSSIAN"; modeIndicator.className="gaussian"; }
+        else if (fType==='manual_value') { statusText.textContent="Manual value feature — enter value in the right pane"; modeIndicator.textContent="MANUAL"; modeIndicator.className="edit"; }
+        else { statusText.textContent=`${points.length} points • Left-click to add • Ctrl+Z undo • Scroll to zoom`; modeIndicator.textContent="DIGITIZING"; modeIndicator.className="digitization"; }
     }
+    else if (appState==="edit") { statusText.textContent="Click point to select • Drag to move • Right-click for options"; modeIndicator.textContent="EDIT MODE"; modeIndicator.className="edit"; }
+    else { statusText.textContent=sourceImage?"Ready":"Snip a plot from the PDF"; }
 }
 
 function updateTable() {
-    dataBody.innerHTML = "";
-    const isGaussian = getActiveFeatureType() === 'gaussian';
-    points.forEach((p, i) => {
-        const tr = document.createElement("tr");
-        const isPeak = isGaussian && i === 0;
-        tr.className = (i === selectedPointIndex ? "selected" : "") + (isPeak ? " peak-row" : "");
-        const label = isPeak ? "μ" : String(i + 1);
-        tr.innerHTML = `<td>${label}</td><td>${p.x_real.toFixed(4)}</td><td>${p.y_real.toFixed(4)}</td>
-            <td><button class="del-btn" onclick="deletePoint(${i})">×</button></td>`;
-        tr.addEventListener("click", () => { selectedPointIndex = i; redraw(); updateTable(); });
-        dataBody.appendChild(tr);
-    });
+    dataBody.innerHTML=""; const isG=getActiveFeatureType()==='gaussian';
+    points.forEach((p,i)=>{const tr=document.createElement("tr"); const pk=isG&&i===0; tr.className=(i===selectedPointIndex?"selected":"")+(pk?" peak-row":""); tr.innerHTML=`<td>${pk?"μ":String(i+1)}</td><td>${p.x_real.toFixed(4)}</td><td>${p.y_real.toFixed(4)}</td><td><button class="del-btn" onclick="deletePoint(${i})">×</button></td>`; tr.addEventListener("click",()=>{selectedPointIndex=i;redraw();updateTable();}); dataBody.appendChild(tr);});
 }
 
-window.deletePoint = function(idx) {
-    points.splice(idx, 1);
-    if (selectedPointIndex >= points.length) selectedPointIndex = -1;
-    recalculatePoints();
-    redraw(); updateTable(); updateStatus();
-    if (getActiveFeatureType() === 'gaussian') updateGaussianStats();
-};
+window.deletePoint = function(idx) { points.splice(idx,1); if(selectedPointIndex>=points.length)selectedPointIndex=-1; recalculatePoints(); redraw(); updateTable(); updateStatus(); if(getActiveFeatureType()==='gaussian')updateGaussianStats(); };
 
 function receiveImage(img) {
-    sourceImage = img;
-    appState = "calibration";
-    calibClicks = [];
-    points = [];
-    calib = { a:0, b:0, c:0, d:0, valid:false };
-    editMode = false;
-    selectedPointIndex = -1;
-
-    const sx = canvas.width / img.width;
-    const sy = canvas.height / img.height;
-    T.scale = Math.min(sx, sy) * 0.85;
-    T.offsetX = (canvas.width - img.width * T.scale) / 2;
-    T.offsetY = (canvas.height - img.height * T.scale) / 2;
-
-    emptyState.classList.add("hidden");
-    resetPtsBtn.style.display = "none";
-    closeDigitizerBtn.style.display = "block";
-    editModeBtn.style.display = "none";
-    calibForm.style.display = "none";
-    calibPanel.style.display = "none";
-
-    switchEditingContext();
-    updateStatus(); updateTable(); redraw();
+    sourceImage=img; appState="calibration"; calibClicks=[]; points=[]; calib={a:0,b:0,c:0,d:0,valid:false}; editMode=false; selectedPointIndex=-1;
+    const sx=canvas.width/img.width, sy=canvas.height/img.height; T.scale=Math.min(sx,sy)*0.85; T.offsetX=(canvas.width-img.width*T.scale)/2; T.offsetY=(canvas.height-img.height*T.scale)/2;
+    emptyState.classList.add("hidden"); resetPtsBtn.style.display="none"; closeDigitizerBtn.style.display="block"; editModeBtn.style.display="none"; calibForm.style.display="none"; calibPanel.style.display="none";
+    switchEditingContext(); updateStatus(); updateTable(); redraw();
 }
 
 function closeDigitizer() {
-    appState = "idle";
-    sourceImage = null;
-    calibClicks = [];
-    calib = { a:0,b:0,c:0,d:0, valid:false };
-    points = [];
-    editMode = false;
-    selectedPointIndex = -1;
-    currentEditingKey = "";
-    T.scale = 1; T.offsetX = 0; T.offsetY = 0;
-    
-    calibForm.style.display = "none";
-    calibPanel.style.display = "none";
-    resetPtsBtn.style.display = "none";
-    closeDigitizerBtn.style.display = "none";
-    editModeBtn.style.display = "none";
-    magnifier.style.display = "none";
-    coordReadout.style.display = "none";
-    emptyState.classList.remove("hidden");
-    
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    updateStatus(); updateTable();
+    appState="idle"; sourceImage=null; calibClicks=[]; calib={a:0,b:0,c:0,d:0,valid:false}; points=[]; editMode=false; selectedPointIndex=-1; currentEditingKey=""; T.scale=1;T.offsetX=0;T.offsetY=0;
+    calibForm.style.display="none"; calibPanel.style.display="none"; resetPtsBtn.style.display="none"; closeDigitizerBtn.style.display="none"; editModeBtn.style.display="none"; magnifier.style.display="none"; coordReadout.style.display="none"; emptyState.classList.remove("hidden");
+    ctx.clearRect(0,0,canvas.width,canvas.height); updateStatus(); updateTable();
 }
+closeDigitizerBtn.addEventListener("click",()=>{if(points.length>0&&!confirm("Unsaved points will be lost. Close?"))return; closeDigitizer(); toast("Closed. Continue with the PDF.","warning");});
 
-closeDigitizerBtn.addEventListener("click", () => {
-    if (points.length > 0 && !confirm("Unsaved points will be lost. Close?")) return;
-    closeDigitizer();
-    toast("Closed. Continue with the PDF.", "warning");
-});
+editModeBtn.addEventListener("click",()=>{editMode=!editMode; appState=editMode?"edit":"digitization"; editModeBtn.classList.toggle("active",editMode); editModeBtn.textContent=editMode?"✋ Done Editing":"✋ Edit Points"; selectedPointIndex=-1; updateStatus(); redraw();});
 
-// ── Edit mode ──────────────────────────────────────────────────────────
-editModeBtn.addEventListener("click", () => {
-    editMode = !editMode;
-    appState = editMode ? "edit" : "digitization";
-    editModeBtn.classList.toggle("active", editMode);
-    editModeBtn.textContent = editMode ? "✋ Done Editing" : "✋ Edit Points";
-    selectedPointIndex = -1;
-    updateStatus(); redraw();
-});
-
-// ── Canvas events ──────────────────────────────────────────────────────
 canvas.addEventListener("mousedown", e => {
     if (!sourceImage) return;
-    
-    const r = canvas.getBoundingClientRect();
-    const dx = e.clientX - r.left, dy = e.clientY - r.top;
-    const img = d2i(dx, dy);
-    
-    if (e.button === 1 || e.button === 2) {
-        isPanning = true;
-        panStart = {x:e.clientX, y:e.clientY};
-        panOffStart = {x:T.offsetX, y:T.offsetY};
-        contextMenu.style.display = "none";
-        e.preventDefault();
-        return;
-    }
-    
-    if (e.button !== 0) return;
-    contextMenu.style.display = "none";
-    
-    if (appState === "edit") {
-        const hitIdx = findPointAt(dx, dy);
-        if (hitIdx >= 0) {
-            selectedPointIndex = hitIdx;
-            draggingPoint = true;
-            redraw(); updateTable();
-        } else {
-            selectedPointIndex = -1;
-            redraw(); updateTable();
-        }
-        return;
-    }
-    
-    if (appState === "calibration") {
-        calibClicks.push({x:img.x, y:img.y});
-        redraw();
-        if (calibClicks.length >= 4) {
-            appState = "calibration_form";
-            calibForm.style.display = "block";
-            $("fXmin").focus();
-        }
-        updateStatus();
-        return;
-    }
-    
-    if (appState === "digitization" && calib.valid) {
-        // Manual value features don't accept canvas clicks
-        if (getActiveFeatureType() === 'manual_value') {
-            toast("This is a manual value feature — enter the value in the right pane.", "warning");
-            return;
-        }
-        const xr = calib.a * img.x + calib.b;
-        const yr = calib.c * img.y + calib.d;
-        points.push({x_img:img.x, y_img:img.y, x_real:xr, y_real:yr});
-        redraw(); updateStatus(); updateTable();
-        if (getActiveFeatureType() === 'gaussian') updateGaussianStats();
-    }
+    const r=canvas.getBoundingClientRect(), dx=e.clientX-r.left, dy=e.clientY-r.top, img=d2i(dx,dy);
+    if (e.button===1||e.button===2) { isPanning=true; panStart={x:e.clientX,y:e.clientY}; panOffStart={x:T.offsetX,y:T.offsetY}; contextMenu.style.display="none"; e.preventDefault(); return; }
+    if (e.button!==0) return; contextMenu.style.display="none";
+    if (appState==="edit") { const hi=findPointAt(dx,dy); if(hi>=0){selectedPointIndex=hi;draggingPoint=true;}else{selectedPointIndex=-1;} redraw();updateTable(); return; }
+    if (appState==="calibration") { calibClicks.push({x:img.x,y:img.y}); redraw(); if(calibClicks.length>=4){appState="calibration_form";calibForm.style.display="block";$("fXmin").focus();} updateStatus(); return; }
+    if (appState==="digitization"&&calib.valid) { if(getActiveFeatureType()==='manual_value'){toast("This is a manual value feature — enter the value in the right pane.","warning");return;} const xr=calib.a*img.x+calib.b, yr=calib.c*img.y+calib.d; points.push({x_img:img.x,y_img:img.y,x_real:xr,y_real:yr}); redraw();updateStatus();updateTable(); if(getActiveFeatureType()==='gaussian')updateGaussianStats(); }
 });
 
 canvas.addEventListener("mousemove", e => {
-    const r = canvas.getBoundingClientRect();
-    const dx = e.clientX - r.left, dy = e.clientY - r.top;
-    
-    if (isPanning) {
-        T.offsetX = panOffStart.x + (e.clientX - panStart.x);
-        T.offsetY = panOffStart.y + (e.clientY - panStart.y);
-        redraw();
-        return;
-    }
-    
-    if (draggingPoint && selectedPointIndex >= 0) {
-        const img = d2i(dx, dy);
-        points[selectedPointIndex].x_img = img.x;
-        points[selectedPointIndex].y_img = img.y;
-        points[selectedPointIndex].x_real = calib.a * img.x + calib.b;
-        points[selectedPointIndex].y_real = calib.c * img.y + calib.d;
-        redraw(); updateTable();
-        if (getActiveFeatureType() === 'gaussian') updateGaussianStats();
-        return;
-    }
-    
+    const r=canvas.getBoundingClientRect(), dx=e.clientX-r.left, dy=e.clientY-r.top;
+    if (isPanning) { T.offsetX=panOffStart.x+(e.clientX-panStart.x); T.offsetY=panOffStart.y+(e.clientY-panStart.y); redraw(); return; }
+    if (draggingPoint&&selectedPointIndex>=0) { const img=d2i(dx,dy); points[selectedPointIndex].x_img=img.x; points[selectedPointIndex].y_img=img.y; points[selectedPointIndex].x_real=calib.a*img.x+calib.b; points[selectedPointIndex].y_real=calib.c*img.y+calib.d; redraw();updateTable(); if(getActiveFeatureType()==='gaussian')updateGaussianStats(); return; }
     if (!sourceImage) return;
-    
-    const img = d2i(dx, dy);
-    
-    if (appState === "edit") {
-        canvas.style.cursor = findPointAt(dx, dy) >= 0 ? "grab" : "default";
-    } else {
-        canvas.style.cursor = "crosshair";
-    }
-    
-    coordReadout.style.display = "block";
-    if (calib.valid) {
-        const xr = calib.a * img.x + calib.b;
-        const yr = calib.c * img.y + calib.d;
-        coordReadout.textContent = `x: ${xr.toFixed(4)}  y: ${yr.toFixed(4)}`;
-    } else {
-        coordReadout.textContent = `px: ${Math.round(img.x)}, ${Math.round(img.y)}`;
-    }
-    
-    if (!magnifierEnabled) {
-        magnifier.style.display = "none";
-        return;
-    }
-    magnifier.style.display = "block";
-    let mx = e.clientX + 20, my = e.clientY + 20;
-    if (mx + 154 > window.innerWidth) mx = e.clientX - 174;
-    if (my + 154 > window.innerHeight) my = e.clientY - 174;
-    magnifier.style.left = Math.max(0,mx) + "px";
-    magnifier.style.top = Math.max(0,my) + "px";
-    
-    magCtx.clearRect(0,0,150,150);
-    magCtx.imageSmoothingEnabled = false;
-    magCtx.drawImage(sourceImage, img.x-37.5, img.y-37.5, 75, 75, 0, 0, 150, 150);
-    const crossColor = getActiveFeatureType() === 'gaussian' ? '#fbbf24' : getSystemColor(systemSelect.value);
-    magCtx.strokeStyle = crossColor; magCtx.lineWidth = 1;
-    magCtx.beginPath(); magCtx.moveTo(75,60); magCtx.lineTo(75,90); magCtx.stroke();
-    magCtx.beginPath(); magCtx.moveTo(60,75); magCtx.lineTo(90,75); magCtx.stroke();
+    const img=d2i(dx,dy);
+    if (appState==="edit") canvas.style.cursor=findPointAt(dx,dy)>=0?"grab":"default";
+    else canvas.style.cursor="crosshair";
+    coordReadout.style.display="block";
+    if (calib.valid) { const xr=calib.a*img.x+calib.b, yr=calib.c*img.y+calib.d; coordReadout.textContent=`x: ${xr.toFixed(4)}  y: ${yr.toFixed(4)}`; } else { coordReadout.textContent=`px: ${Math.round(img.x)}, ${Math.round(img.y)}`; }
+    if (!magnifierEnabled) { magnifier.style.display="none"; return; }
+    magnifier.style.display="block"; let mx=e.clientX+20,my=e.clientY+20; if(mx+154>window.innerWidth)mx=e.clientX-174; if(my+154>window.innerHeight)my=e.clientY-174; magnifier.style.left=Math.max(0,mx)+"px";magnifier.style.top=Math.max(0,my)+"px";
+    magCtx.clearRect(0,0,150,150); magCtx.imageSmoothingEnabled=false; magCtx.drawImage(sourceImage,img.x-37.5,img.y-37.5,75,75,0,0,150,150);
+    const crossColor=getActiveFeatureType()==='gaussian'?'#fbbf24':getSystemColor(systemSelect.value); magCtx.strokeStyle=crossColor;magCtx.lineWidth=1; magCtx.beginPath();magCtx.moveTo(75,60);magCtx.lineTo(75,90);magCtx.stroke(); magCtx.beginPath();magCtx.moveTo(60,75);magCtx.lineTo(90,75);magCtx.stroke();
 });
 
-canvas.addEventListener("mouseup", e => {
-    if (e.button === 1 || e.button === 2) isPanning = false;
-    if (draggingPoint) {
-        draggingPoint = false;
-        if (getActiveFeatureType() === 'gaussian') updateGaussianStats();
-    }
-    draggingPoint = false;
-});
+canvas.addEventListener("mouseup", e => { if(e.button===1||e.button===2)isPanning=false; if(draggingPoint){draggingPoint=false;if(getActiveFeatureType()==='gaussian')updateGaussianStats();} draggingPoint=false; });
+canvas.addEventListener("mouseleave",()=>{magnifier.style.display="none";coordReadout.style.display="none";isPanning=false;draggingPoint=false;});
+canvas.addEventListener("contextmenu", e => { e.preventDefault(); if(appState!=="edit"&&appState!=="digitization")return; const r=canvas.getBoundingClientRect(), hi=findPointAt(e.clientX-r.left,e.clientY-r.top); if(hi>=0){selectedPointIndex=hi;redraw();updateTable();contextMenu.style.left=e.clientX+"px";contextMenu.style.top=e.clientY+"px";contextMenu.style.display="block";} });
+function findPointAt(dx,dy){for(let i=points.length-1;i>=0;i--){const d=i2d(points[i].x_img,points[i].y_img);if(Math.hypot(d.x-dx,d.y-dy)<10)return i;}return -1;}
+$("ctxDeletePoint").addEventListener("click",()=>{if(selectedPointIndex>=0)window.deletePoint(selectedPointIndex);contextMenu.style.display="none";});
+$("ctxMovePoint").addEventListener("click",()=>{if(selectedPointIndex>=0){editMode=true;appState="edit";editModeBtn.classList.add("active");editModeBtn.textContent="✋ Done Editing";updateStatus();toast("Drag the point to move it.","warning");}contextMenu.style.display="none";});
+document.addEventListener("click", e => { if(!contextMenu.contains(e.target))contextMenu.style.display="none"; });
 
-canvas.addEventListener("mouseleave", () => {
-    magnifier.style.display = "none";
-    coordReadout.style.display = "none";
-    isPanning = false;
-    draggingPoint = false;
-});
-
-canvas.addEventListener("contextmenu", e => {
-    e.preventDefault();
-    if (appState !== "edit" && appState !== "digitization") return;
-    const r = canvas.getBoundingClientRect();
-    const hitIdx = findPointAt(e.clientX - r.left, e.clientY - r.top);
-    if (hitIdx >= 0) {
-        selectedPointIndex = hitIdx;
-        redraw(); updateTable();
-        contextMenu.style.left = e.clientX + "px";
-        contextMenu.style.top = e.clientY + "px";
-        contextMenu.style.display = "block";
-    }
-});
-
-function findPointAt(dx, dy) {
-    for (let i = points.length - 1; i >= 0; i--) {
-        const d = i2d(points[i].x_img, points[i].y_img);
-        if (Math.hypot(d.x - dx, d.y - dy) < 10) return i;
-    }
-    return -1;
-}
-
-$("ctxDeletePoint").addEventListener("click", () => {
-    if (selectedPointIndex >= 0) deletePoint(selectedPointIndex);
-    contextMenu.style.display = "none";
-});
-
-$("ctxMovePoint").addEventListener("click", () => {
-    if (selectedPointIndex >= 0) {
-        editMode = true;
-        appState = "edit";
-        editModeBtn.classList.add("active");
-        editModeBtn.textContent = "✋ Done Editing";
-        updateStatus();
-        toast("Drag the point to move it.", "warning");
-    }
-    contextMenu.style.display = "none";
-});
-
-document.addEventListener("click", e => {
-    if (!contextMenu.contains(e.target)) contextMenu.style.display = "none";
-});
-
-canvas.addEventListener("wheel", e => {
-    e.preventDefault();
-    if (!sourceImage) return;
-    const r = canvas.getBoundingClientRect();
-    const mx = e.clientX - r.left, my = e.clientY - r.top;
-    const zf = e.deltaY < 0 ? 1.15 : 1/1.15;
-    const ns = Math.max(0.1, Math.min(20, T.scale * zf));
-    const ratio = ns / T.scale;
-    T.offsetX = mx - ratio * (mx - T.offsetX);
-    T.offsetY = my - ratio * (my - T.offsetY);
-    T.scale = ns;
-    redraw();
-}, {passive:false});
+canvas.addEventListener("wheel", e => { e.preventDefault(); if(!sourceImage)return; const r=canvas.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top; const zf=e.deltaY<0?1.15:1/1.15, ns=Math.max(0.1,Math.min(20,T.scale*zf)), ratio=ns/T.scale; T.offsetX=mx-ratio*(mx-T.offsetX); T.offsetY=my-ratio*(my-T.offsetY); T.scale=ns; redraw(); }, {passive:false});
 
 document.addEventListener("keydown", e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "z") {
-        if ((appState === "digitization" || appState === "edit") && points.length > 0) {
-            points.pop();
-            if (selectedPointIndex >= points.length) selectedPointIndex = -1;
-            redraw(); updateStatus(); updateTable();
-            if (getActiveFeatureType() === 'gaussian') updateGaussianStats();
-        }
-        e.preventDefault();
-    }
-    if (e.key === "Delete" && selectedPointIndex >= 0) {
-        deletePoint(selectedPointIndex);
-    }
-    if (e.key === "Escape") {
-        selectedPointIndex = -1;
-        contextMenu.style.display = "none";
-        redraw(); updateTable();
-    }
+    if ((e.ctrlKey||e.metaKey)&&e.key==="z") { if((appState==="digitization"||appState==="edit")&&points.length>0){points.pop();if(selectedPointIndex>=points.length)selectedPointIndex=-1;redraw();updateStatus();updateTable();if(getActiveFeatureType()==='gaussian')updateGaussianStats();} e.preventDefault(); }
+    if (e.key==="Delete"&&selectedPointIndex>=0) { window.deletePoint(selectedPointIndex); }
+    if (e.key==="Escape") { selectedPointIndex=-1; contextMenu.style.display="none"; redraw(); updateTable(); }
 });
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1689,212 +1248,96 @@ document.addEventListener("keydown", e => {
 // ═══════════════════════════════════════════════════════════════════════
 
 confirmBtn.addEventListener("click", () => {
-    const xmin = parseFloat($("fXmin").value);
-    const xmax = parseFloat($("fXmax").value);
-    const ymin = parseFloat($("fYmin").value);
-    const ymax = parseFloat($("fYmax").value);
-
-    if (!isFinite(xmin) || !isFinite(xmax) || !isFinite(ymin) || !isFinite(ymax)) {
-        calibError.textContent = "All values must be valid numbers.";
-        calibError.style.display = "block";
-        return;
-    }
-    calibError.style.display = "none";
-    
-    calibValues = {xmin, xmax, ymin, ymax};
-    applyCalibration();
-    
-    calibForm.style.display = "none";
-    appState = "digitization";
-    resetPtsBtn.style.display = "block";
-    editModeBtn.style.display = "block";
-    calibPanel.style.display = "block";
-    
-    $("calibXmin").value = xmin;
-    $("calibXmax").value = xmax;
-    $("calibYmin").value = ymin;
-    $("calibYmax").value = ymax;
-    
-    switchEditingContext();
-    updateStatus(); redraw();
-    toast("Calibrated! Click on data points.", "success");
+    const xmin=parseFloat($("fXmin").value), xmax=parseFloat($("fXmax").value), ymin=parseFloat($("fYmin").value), ymax=parseFloat($("fYmax").value);
+    if (!isFinite(xmin)||!isFinite(xmax)||!isFinite(ymin)||!isFinite(ymax)) { calibError.textContent="All values must be valid numbers.";calibError.style.display="block";return; }
+    calibError.style.display="none";
+    calibValues={xmin,xmax,ymin,ymax}; applyCalibration();
+    calibForm.style.display="none"; appState="digitization"; resetPtsBtn.style.display="block"; editModeBtn.style.display="block"; calibPanel.style.display="block";
+    $("calibXmin").value=xmin;$("calibXmax").value=xmax;$("calibYmin").value=ymin;$("calibYmax").value=ymax;
+    switchEditingContext(); updateStatus(); redraw(); toast("Calibrated! Click on data points.","success");
 });
 
-function applyCalibration() {
-    const {xmin, xmax, ymin, ymax} = calibValues;
-    const x1 = calibClicks[0].x, x2 = calibClicks[1].x;
-    const y3 = calibClicks[2].y, y4 = calibClicks[3].y;
-    
-    calib.a = (xmax - xmin) / (x2 - x1);
-    calib.b = xmin - calib.a * x1;
-    calib.c = (ymax - ymin) / (y4 - y3);
-    calib.d = ymax - calib.c * y4;
-    calib.valid = true;
-}
-
-function recalculatePoints() {
-    if (!calib.valid) return;
-    points.forEach(p => {
-        p.x_real = calib.a * p.x_img + calib.b;
-        p.y_real = calib.c * p.y_img + calib.d;
-    });
-}
+function applyCalibration() { const {xmin,xmax,ymin,ymax}=calibValues; const x1=calibClicks[0].x,x2=calibClicks[1].x,y3=calibClicks[2].y,y4=calibClicks[3].y; calib.a=(xmax-xmin)/(x2-x1);calib.b=xmin-calib.a*x1;calib.c=(ymax-ymin)/(y4-y3);calib.d=ymax-calib.c*y4;calib.valid=true; }
+function recalculatePoints() { if(!calib.valid)return; points.forEach(p=>{p.x_real=calib.a*p.x_img+calib.b; p.y_real=calib.c*p.y_img+calib.d;}); }
 
 recalibBtn.addEventListener("click", () => {
-    const xmin = parseFloat($("calibXmin").value);
-    const xmax = parseFloat($("calibXmax").value);
-    const ymin = parseFloat($("calibYmin").value);
-    const ymax = parseFloat($("calibYmax").value);
-    
-    if (!isFinite(xmin) || !isFinite(xmax) || !isFinite(ymin) || !isFinite(ymax)) {
-        toast("Invalid calibration values.", "error"); return;
-    }
-    
-    calibValues = {xmin, xmax, ymin, ymax};
-    applyCalibration();
-    recalculatePoints();
-    redraw(); updateTable();
-    if (getActiveFeatureType() === 'gaussian') updateGaussianStats();
-    toast("Calibration updated. Points recalculated.", "success");
+    const xmin=parseFloat($("calibXmin").value), xmax=parseFloat($("calibXmax").value), ymin=parseFloat($("calibYmin").value), ymax=parseFloat($("calibYmax").value);
+    if (!isFinite(xmin)||!isFinite(xmax)||!isFinite(ymin)||!isFinite(ymax)) { toast("Invalid calibration values.","error");return; }
+    calibValues={xmin,xmax,ymin,ymax}; applyCalibration(); recalculatePoints(); redraw();updateTable(); if(getActiveFeatureType()==='gaussian')updateGaussianStats(); toast("Calibration updated. Points recalculated.","success");
 });
 
-resetPtsBtn.addEventListener("click", () => {
-    if (!confirm("Clear all points?")) return;
-    points = [];
-    selectedPointIndex = -1;
-    redraw(); updateStatus(); updateTable();
-    if (getActiveFeatureType() === 'gaussian') updateGaussianStats();
-    toast("Points cleared.", "warning");
-});
+resetPtsBtn.addEventListener("click", () => { if(!confirm("Clear all points?"))return; points=[];selectedPointIndex=-1;redraw();updateStatus();updateTable(); if(getActiveFeatureType()==='gaussian')updateGaussianStats(); toast("Points cleared.","warning"); });
 
 // ═══════════════════════════════════════════════════════════════════════
-//  FEATURE MANAGEMENT
+//  FEATURE MANAGEMENT (ORIGINAL — kept exactly as first message)
 // ═══════════════════════════════════════════════════════════════════════
 
-addSystemBtn.addEventListener("click", () => {
+function addSystem() {
     const name = systemInput.value.trim();
     if (!name) { toast("Enter a system name.", "error"); return; }
-    if (systems.map(s=>s.toLowerCase()).includes(name.toLowerCase())) {
-        toast("System already exists.", "error"); return;
-    }
+    if (systems.map(s=>s.toLowerCase()).includes(name.toLowerCase())) { toast("System already exists.", "error"); return; }
     systems.push(name);
-    renderSystemList();
-    systemSelect.value = name;
-    systemInput.value = "";
-    renderFeatureList();
-    loadSelectedFeatureMetadata();
+    renderSystemList(); systemSelect.value = name; systemInput.value = "";
+    renderFeatureList(); loadSelectedFeatureMetadata();
     toast(`Added system "${name}"`, "success");
-});
+}
+addSystemBtn.addEventListener("click", addSystem);
+systemInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addSystem(); } });
 
-systemSelect.addEventListener("change", () => {
-    renderFeatureList();
-    loadSelectedFeatureMetadata();
-    switchEditingContext();
-});
+systemSelect.addEventListener("change", () => { renderFeatureList(); loadSelectedFeatureMetadata(); switchEditingContext(); });
+featureSelect.addEventListener("change", () => { loadSelectedFeatureMetadata(); switchEditingContext(); });
+toggleMagnifier.addEventListener("change", () => { magnifierEnabled = toggleMagnifier.checked; if (!magnifierEnabled) magnifier.style.display = "none"; });
+pointSizeInput.addEventListener("input", () => { pointRadius = parseInt(pointSizeInput.value, 10) || 5; redraw(); });
 
-featureSelect.addEventListener("change", () => {
-    loadSelectedFeatureMetadata();
-    switchEditingContext();
-});
-
-toggleMagnifier.addEventListener("change", () => {
-    magnifierEnabled = toggleMagnifier.checked;
-    if (!magnifierEnabled) magnifier.style.display = "none";
-});
-
-pointSizeInput.addEventListener("input", () => {
-    pointRadius = parseInt(pointSizeInput.value, 10) || 5;
-    redraw();
-});
-
-addFeatureBtn.addEventListener("click", () => {
+function addFeature() {
     const name = featureInput.value.trim();
     if (!name) { toast("Enter a feature name.", "error"); return; }
-    if (features.map(f=>f.toLowerCase()).includes(name.toLowerCase())) {
-        toast("Feature already exists.", "error"); return;
-    }
-    features.push(name);
-    saveFeaturesToStorage();
-    // Auto-set type for non-gaussian features (default 'plot')
-    if (!getFeatureType(name).startsWith('g')) {
-        featureTypes[name] = featureTypes[name] || 'plot';
-        saveFeatureTypesToStorage();
-    }
-    renderFeatureList();
-    featureSelect.value = name;
-    featureInput.value = "";
+    if (features.map(f=>f.toLowerCase()).includes(name.toLowerCase())) { toast("Feature already exists.", "error"); return; }
+    features.push(name); saveFeaturesToStorage();
+    if (!getFeatureType(name).startsWith('g')) { featureTypes[name] = featureTypes[name] || 'plot'; saveFeatureTypesToStorage(); }
+    renderFeatureList(); featureSelect.value = name; featureInput.value = "";
     switchEditingContext();
     const type = getFeatureType(name);
     const typeMsg = type === 'gaussian' ? ' (Gaussian mode auto-detected)' : '';
     toast(`Added "${name}"${typeMsg}`, "success");
-});
+}
+addFeatureBtn.addEventListener("click", addFeature);
+featureInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addFeature(); } });
 
 // ═══════════════════════════════════════════════════════════════════════
-//  SAVE FEATURE DATA (temp) & EXPORT EXCEL
+//  SAVE FEATURE DATA & EXPORT EXCEL
 // ═══════════════════════════════════════════════════════════════════════
 
 saveFeatureBtn.addEventListener("click", () => {
     if (!pdfDoc) { toast("No PDF loaded.", "error"); return; }
-    const systemName = systemSelect.value;
-    if (!systemName) { toast("Select a system.", "error"); return; }
-    const feat = featureSelect.value;
-    if (!feat) { toast("Select a feature.", "error"); return; }
-
+    const systemName = systemSelect.value; if (!systemName) { toast("Select a system.", "error"); return; }
+    const feat = featureSelect.value; if (!feat) { toast("Select a feature.", "error"); return; }
     const featureType = getFeatureType(feat);
 
-    // ── Manual value ────────────────────────────────────────────────
     if (featureType === 'manual_value') {
         const val = parseFloat(manualValueInput.value);
         if (!isFinite(val)) { toast("Enter a valid number in the manual value field.", "error"); return; }
-        const systemData = getActiveSystemData();
-        systemData[feat] = { type: 'manual_value', value: val };
-        renderSystemList();
-        renderFeatureList();
-        toast(`Saved manual value ${val} for "${feat}" / "${systemName}"`, "success");
-        return;
+        const systemData = getActiveSystemData(); systemData[feat] = { type:'manual_value', value:val };
+        renderSystemList(); renderFeatureList();
+        toast(`Saved manual value ${val} for "${feat}" / "${systemName}"`, "success"); return;
     }
-
-    // Both plot and gaussian require calibration + points
     if (!calib.valid) { toast("Complete calibration first.", "error"); return; }
     if (points.length === 0) { toast("No points to save.", "error"); return; }
 
-    // ── Gaussian ────────────────────────────────────────────────────
     if (featureType === 'gaussian') {
-        const xLabel = xLabelInput.value.trim();
-        if (!xLabel) { toast("Enter X label (axis name).", "error"); return; }
-        const g = computeGaussian();
-        if (!g || g.std == null) {
-            toast("Need at least 2 points: the peak (μ) + one curve point to estimate σ.", "error");
-            return;
-        }
-        featureMetadata[feat] = { x_label: xLabel, y_label: '' };
-        saveFeatureMetadataToStorage();
-        const systemData = getActiveSystemData();
-        systemData[feat] = {
-            type: 'gaussian',
-            points: buildPointsMap(),
-            mean: g.mean,
-            std: g.std
-        };
-        renderSystemList();
-        renderFeatureList();
-        switchEditingContext();
-        toast(`Saved Gaussian "${feat}" — μ=${g.mean.toFixed(4)}, σ=${g.std.toFixed(4)}`, "success");
-        return;
+        const xLabel = xLabelInput.value.trim(); if (!xLabel) { toast("Enter X label (axis name).", "error"); return; }
+        const g = computeGaussian(); if (!g || g.std == null) { toast("Need at least 2 points: the peak (μ) + one curve point to estimate σ.", "error"); return; }
+        featureMetadata[feat] = { x_label:xLabel, y_label:'' }; saveFeatureMetadataToStorage();
+        const systemData = getActiveSystemData(); systemData[feat] = { type:'gaussian', points:buildPointsMap(), mean:g.mean, std:g.std };
+        renderSystemList(); renderFeatureList(); switchEditingContext();
+        toast(`Saved Gaussian "${feat}" — μ=${g.mean.toFixed(4)}, σ=${g.std.toFixed(4)}`, "success"); return;
     }
 
-    // ── Standard plot ───────────────────────────────────────────────
-    const xLabel = xLabelInput.value.trim();
-    const yLabel = yLabelInput.value.trim();
+    const xLabel = xLabelInput.value.trim(), yLabel = yLabelInput.value.trim();
     if (!xLabel || !yLabel) { toast("Enter both X and Y labels.", "error"); return; }
-
-    featureMetadata[feat] = { x_label: xLabel, y_label: yLabel };
-    saveFeatureMetadataToStorage();
-    const systemData = getActiveSystemData();
-    systemData[feat] = { type: 'plot', points: buildPointsMap() };
-    renderSystemList();
-    renderFeatureList();
-    switchEditingContext();
+    featureMetadata[feat] = { x_label:xLabel, y_label:yLabel }; saveFeatureMetadataToStorage();
+    const systemData = getActiveSystemData(); systemData[feat] = { type:'plot', points:buildPointsMap() };
+    renderSystemList(); renderFeatureList(); switchEditingContext();
     toast(`Saved "${feat}" for "${systemName}" — ${points.length} points`, "success");
 });
 
@@ -1903,76 +1346,53 @@ saveExcelBtn.addEventListener("click", () => {
     const systemNames = Object.keys(tempSavedData).filter(name => Object.keys(tempSavedData[name]).length > 0);
     if (systemNames.length === 0) { toast("No saved systems/features to export.", "error"); return; }
 
-    // Collect all feature names across all systems
     const allFeatureNames = [];
-    systemNames.forEach(systemName => {
-        Object.keys(tempSavedData[systemName]).forEach(feat => {
-            if (!allFeatureNames.includes(feat)) allFeatureNames.push(feat);
-        });
-    });
+    systemNames.forEach(systemName => { Object.keys(tempSavedData[systemName]).forEach(feat => { if (!allFeatureNames.includes(feat)) allFeatureNames.push(feat); }); });
 
-    // Build column headers — gaussian features get two columns (_mean, _std)
     const featureColumnMap = {};
-    allFeatureNames.forEach(feat => {
-        const type = getFeatureType(feat);
-        featureColumnMap[feat] = type === 'gaussian'
-            ? [feat + '_mean', feat + '_std']
-            : [feat];
-    });
+    allFeatureNames.forEach(feat => { const type=getFeatureType(feat); featureColumnMap[feat]=type==='gaussian'?[feat+'_mean',feat+'_std']:[feat]; });
     const featureColumns = allFeatureNames.flatMap(f => featureColumnMap[f]);
     const header = ["PDF File", "System Name", ...featureColumns];
 
-    // Build rows
     const rows = systemNames.map(systemName => {
-        const row = { "PDF File": pdfFilename, "System Name": systemName };
+        const row = { "PDF File":pdfFilename, "System Name":systemName };
         allFeatureNames.forEach(feat => {
-            const payload = (tempSavedData[systemName] || {})[feat];
-            const type = getFeatureType(feat);
-
-            if (!payload) {
-                if (type === 'gaussian') {
-                    row[feat + '_mean'] = '';
-                    row[feat + '_std'] = '';
-                } else {
-                    row[feat] = '';
-                }
-                return;
-            }
-
-            if (type === 'gaussian') {
-                row[feat + '_mean'] = payload.mean != null ? payload.mean : '';
-                row[feat + '_std']  = payload.std  != null ? payload.std  : '';
-            } else if (type === 'manual_value') {
-                row[feat] = payload.value != null ? payload.value : '';
-            } else {
-                // standard plot — JSON payload
-                row[feat] = JSON.stringify({
-                    x_label: featureMetadata[feat]?.x_label || "",
-                    y_label: featureMetadata[feat]?.y_label || "",
-                    points:  payload.points || {}
-                });
-            }
+            const payload = (tempSavedData[systemName]||{})[feat], type = getFeatureType(feat);
+            if (!payload) { if(type==='gaussian'){row[feat+'_mean']='';row[feat+'_std']='';} else row[feat]=''; return; }
+            if (type==='gaussian') { row[feat+'_mean']=payload.mean!=null?payload.mean:''; row[feat+'_std']=payload.std!=null?payload.std:''; }
+            else if (type==='manual_value') { row[feat]=payload.value!=null?payload.value:''; }
+            else { row[feat]=JSON.stringify({x_label:featureMetadata[feat]?.x_label||"",y_label:featureMetadata[feat]?.y_label||"",points:payload.points||{}}); }
         });
         return row;
     });
 
-    // Normalize rows (fill missing keys)
-    const normalizedRows = rows.map(row => {
-        const out = { "PDF File": row["PDF File"], "System Name": row["System Name"] };
-        featureColumns.forEach(col => { out[col] = row[col] !== undefined ? row[col] : ''; });
-        return out;
-    });
-
-    const ws = XLSX.utils.json_to_sheet(normalizedRows, { header });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "paper_data");
-    ws["!cols"] = header.map(k => ({ wch: Math.max(k.length, 22) }));
-
-    const outputName = (pdfFilename || "paper").replace(/\.pdf$/i, "") + ".xlsx";
+    const normalizedRows = rows.map(row => { const out={"PDF File":row["PDF File"],"System Name":row["System Name"]}; featureColumns.forEach(col=>{out[col]=row[col]!==undefined?row[col]:'';}); return out; });
+    const ws = XLSX.utils.json_to_sheet(normalizedRows, { header }); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "paper_data");
+    ws["!cols"] = header.map(k => ({ wch:Math.max(k.length, 22) }));
+    const outputName = (pdfFilename||"paper").replace(/\.pdf$/i, "") + ".xlsx";
     XLSX.writeFile(wb, outputName);
+    updateSavedCount(); toast(`Exported ${outputName} with ${systemNames.length} systems.`, "success", 4000);
+});
 
-    updateSavedCount();
-    toast(`Exported ${outputName} with ${systemNames.length} systems.`, "success", 4000);
+// ── COPY SYSTEM JSON ──────────────────────────────────────────────────
+function buildSystemJson(systemName) {
+    const systemData = tempSavedData[systemName] || {}, featuresOut = {};
+    Object.keys(systemData).forEach(feat => {
+        const payload = systemData[feat], type = getFeatureType(feat); if (!payload) return;
+        if (type==='gaussian') featuresOut[feat]={type:'gaussian',x_label:featureMetadata[feat]?.x_label||"",mean:payload.mean!=null?payload.mean:null,std:payload.std!=null?payload.std:null,points:payload.points||{}};
+        else if (type==='manual_value') featuresOut[feat]={type:'manual_value',value:payload.value!=null?payload.value:null};
+        else featuresOut[feat]={type:'plot',x_label:featureMetadata[feat]?.x_label||"",y_label:featureMetadata[feat]?.y_label||"",points:payload.points||{}};
+    });
+    return { pdf_file:pdfFilename, system:systemName, features:featuresOut };
+}
+
+copyJsonBtn.addEventListener("click", async () => {
+    const systemName = systemSelect.value; if (!systemName) { toast("Select a system to copy.", "error"); return; }
+    const systemData = tempSavedData[systemName] || {};
+    if (Object.keys(systemData).length===0) { toast(`No saved feature data for "${systemName}". Save a feature first.`, "warning"); return; }
+    const jsonStr = JSON.stringify(buildSystemJson(systemName), null, 2);
+    try { await navigator.clipboard.writeText(jsonStr); toast(`Copied "${systemName}" JSON to clipboard.`, "success"); }
+    catch (err) { const ta=document.createElement("textarea"); ta.value=jsonStr; ta.style.cssText="position:fixed;opacity:0"; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy");toast(`Copied "${systemName}" JSON to clipboard.`,"success");}catch(e2){toast("Copy failed — clipboard not available.","error");console.log(jsonStr);} document.body.removeChild(ta); }
 });
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1982,27 +1402,15 @@ saveExcelBtn.addEventListener("click", () => {
 function setupResize(handleId, paneId, dir) {
     const handle = $(handleId), pane = $(paneId);
     handle.addEventListener("mousedown", e => {
-        e.preventDefault();
-        const startX = e.clientX, startW = pane.getBoundingClientRect().width;
-        handle.classList.add("active");
-        function onMove(ev) {
-            const delta = dir === "left" ? (ev.clientX - startX) : (startX - ev.clientX);
-            pane.style.width = Math.max(180, startW + delta) + "px";
-            resizeCanvas();
-        }
-        function onUp() {
-            handle.classList.remove("active");
-            document.removeEventListener("mousemove", onMove);
-            document.removeEventListener("mouseup", onUp);
-        }
-        document.addEventListener("mousemove", onMove);
-        document.addEventListener("mouseup", onUp);
+        e.preventDefault(); const startX=e.clientX, startW=pane.getBoundingClientRect().width; handle.classList.add("active");
+        function onMove(ev) { const delta=dir==="left"?ev.clientX-startX:startX-ev.clientX; pane.style.width=Math.max(180,startW+delta)+"px"; resizeCanvas(); }
+        function onUp() { handle.classList.remove("active"); document.removeEventListener("mousemove",onMove); document.removeEventListener("mouseup",onUp); }
+        document.addEventListener("mousemove",onMove); document.addEventListener("mouseup",onUp);
     });
 }
 setupResize("resizeLeft", "leftPane", "left");
 setupResize("resizeRight", "rightPane", "right");
 
-// ── Init ───────────────────────────────────────────────────────────────
 renderSystemList();
 renderFeatureList();
 updateFeatureTypeUI();
