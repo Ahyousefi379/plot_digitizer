@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -91,6 +91,7 @@
         }
         #modeIndicator.calibration { background: #3b82f6; color: #fff; }
         #modeIndicator.digitization { background: #22c55e; color: #fff; }
+        #modeIndicator.gaussian { background: #f59e0b; color: #1e293b; }
         #modeIndicator.edit { background: #f59e0b; color: #1e293b; }
         
         #canvasWrap {
@@ -184,11 +185,11 @@
             font-weight: 700; color: #e2e8f0; font-size: 12px;
             word-break: break-all; min-height: 16px;
         }
-        #rightPane input[type="text"] {
+        #rightPane input[type="text"], #rightPane input[type="number"] {
             width: 100%; padding: 5px 8px; background: #0f172a; border: 1px solid #475569;
             border-radius: 4px; color: #e2e8f0; font-size: 12px; outline: none;
         }
-        #rightPane input[type="text"]:focus { border-color: #60a5fa; }
+        #rightPane input[type="text"]:focus, #rightPane input[type="number"]:focus { border-color: #60a5fa; }
         #rightPane select {
             width: 100%; padding: 5px 8px; background: #0f172a; border: 1px solid #475569;
             border-radius: 4px; color: #e2e8f0; font-size: 12px; outline: none; cursor: pointer;
@@ -212,11 +213,44 @@
 
         #rightPane .checkbox-row {
             display: flex; align-items: center; gap: 8px;
-            color: #cbd5e1; font-size: 12px; margin-top: 2px;
+            color: #cbd5e1; font-size: 12px; margin-top: 2px; cursor: pointer;
         }
-        #rightPane .checkbox-row input[type="checkbox"] {
-            width: auto;
+        #rightPane .checkbox-row input[type="checkbox"] { width: auto; cursor: pointer; }
+
+        /* ── Feature type badge ──────────────────────── */
+        .feat-type-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 700;
+            letter-spacing: 0.3px;
         }
+        .feat-type-badge.plot    { background: #164e63; color: #67e8f9; border: 1px solid #155e75; }
+        .feat-type-badge.manual  { background: #1e3a5f; color: #93c5fd; border: 1px solid #1e40af; }
+        .feat-type-badge.gaussian { background: #422006; color: #fde68a; border: 1px solid #92400e; }
+
+        /* ── Gaussian stats box ──────────────────────── */
+        #gaussianStatsSection {
+            background: #0f172a; border: 1px solid #92400e; border-radius: 4px;
+            padding: 7px 10px; font-size: 11px; color: #94a3b8; display: none;
+        }
+        #gaussianStatsSection .g-val {
+            color: #fbbf24; font-weight: 700; font-variant-numeric: tabular-nums;
+        }
+        #gaussianStatsSection .g-hint {
+            font-size: 10px; opacity: 0.65; margin-top: 3px;
+        }
+
+        /* ── Manual value section ────────────────────── */
+        #manualValueSection {
+            background: #0f172a; border: 1px solid #1e40af; border-radius: 4px;
+            padding: 7px 10px; display: none;
+        }
+        #manualValueSection label { color: #93c5fd !important; }
+        #manualValueSection input {
+            width: 100%; margin-top: 4px; padding: 5px 8px; background: #1e293b;
+            border: 1px solid #475569; border-radius: 4px; color: #e2e8f0;
+            font-size: 13px; outline: none; font-variant-numeric: tabular-nums;
+        }
+        #manualValueSection input:focus { border-color: #60a5fa; }
 
         /* ── Feature/system list ─────────────────────── */
         #systemList, #featureList {
@@ -254,6 +288,7 @@
         }
         #dataTable tr:hover td { background: #1e293b; }
         #dataTable tr.selected td { background: #3b82f6; color: #fff; }
+        #dataTable tr.peak-row td { color: #fbbf24; font-weight: 700; }
         #dataTable .del-btn {
             padding: 1px 4px; font-size: 9px; background: #ef4444; color: #fff;
             border: none; border-radius: 2px; cursor: pointer;
@@ -407,11 +442,42 @@
         <label style="margin-top:4px;">Active feature</label>
         <select id="featureSelect"><option value="">— select —</option></select>
 
-        <label style="margin-top:4px;">X label</label>
-        <input type="text" id="xLabelInput" placeholder="e.g. Time (h)" />
+        <!-- Feature type badge (auto-shown when feature selected) -->
+        <div id="featureTypeBadge" style="display:none; margin-top:2px;"></div>
 
-        <label>Y label</label>
-        <input type="text" id="yLabelInput" placeholder="e.g. Viability (%)" />
+        <!-- Checkbox: plot digitization vs manual. Hidden for gaussian. -->
+        <label id="plotCheckboxRow" class="checkbox-row" style="display:none;">
+            <input type="checkbox" id="isPlotCheckbox" checked />
+            Plot digitization
+        </label>
+
+        <!-- Manual value input block -->
+        <div id="manualValueSection">
+            <label>Manual value</label>
+            <input type="number" id="manualValueInput" step="any" placeholder="Enter a number…" />
+        </div>
+
+        <!-- Gaussian stats block -->
+        <div id="gaussianStatsSection">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                <span style="color:#fbbf24; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px;">∿ Gaussian fit</span>
+            </div>
+            <div>μ (mean): <span class="g-val" id="gaussMeanDisplay">—</span></div>
+            <div>σ (std):&nbsp;&nbsp; <span class="g-val" id="gaussStdDisplay">—</span></div>
+            <div class="g-hint">Click PEAK first → then curve points to estimate σ</div>
+        </div>
+
+        <!-- X label row (hidden for manual_value) -->
+        <div id="xLabelRow">
+            <label style="margin-top:4px;">X label</label>
+            <input type="text" id="xLabelInput" placeholder="e.g. Time (h)" />
+        </div>
+
+        <!-- Y label row (hidden for gaussian and manual_value) -->
+        <div id="yLabelRow">
+            <label>Y label</label>
+            <input type="text" id="yLabelInput" placeholder="e.g. Viability (%)" />
+        </div>
 
         <label>Point size</label>
         <input type="range" id="pointSizeInput" min="2" max="12" step="1" value="5" />
@@ -484,12 +550,15 @@ let draggingPoint = false;
 // Feature management
 let features = JSON.parse(localStorage.getItem('plotDigitizerFeatures') || '[]');
 let featureMetadata = JSON.parse(localStorage.getItem('plotDigitizerFeatureMetadata') || '{}');
+// featureTypes: { featureName: 'plot' | 'manual_value' }
+// 'gaussian' is auto-detected by name suffix — not stored
+let featureTypes = JSON.parse(localStorage.getItem('plotDigitizerFeatureTypes') || '{}');
 let systems = [];
-let tempSavedData = {};  // { systemName: { featureName: { points } } } — for current PDF only
+let tempSavedData = {};
 let magnifierEnabled = true;
 let currentEditingKey = "";
 let pointRadius = 5;
-const systemColors = ["#f87171", "#60a5fa", "#34d399", "#fbbf24", "#c084fc", "#fb7185", "#2dd4bf", "#a3e635"];
+const systemColors = ["#f87171","#60a5fa","#34d399","#fbbf24","#c084fc","#fb7185","#2dd4bf","#a3e635"];
 
 // ── DOM refs ───────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -543,6 +612,16 @@ const dataBody = $("dataBody");
 const savedCount = $("savedCount");
 const masterCount = $("masterCount");
 const contextMenu = $("contextMenu");
+const isPlotCheckbox = $("isPlotCheckbox");
+const plotCheckboxRow = $("plotCheckboxRow");
+const manualValueSection = $("manualValueSection");
+const manualValueInput = $("manualValueInput");
+const gaussianStatsSection = $("gaussianStatsSection");
+const gaussMeanDisplay = $("gaussMeanDisplay");
+const gaussStdDisplay = $("gaussStdDisplay");
+const featureTypeBadge = $("featureTypeBadge");
+const xLabelRow = $("xLabelRow");
+const yLabelRow = $("yLabelRow");
 
 // ── Toast ──────────────────────────────────────────────────────────────
 function toast(msg, type="success", duration=2500) {
@@ -555,7 +634,111 @@ function toast(msg, type="success", duration=2500) {
     t._tid = setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.style.display = "none", 300); }, duration);
 }
 
-// ── Save features to localStorage ──────────────────────────────────────
+// ── Feature type helpers ───────────────────────────────────────────────
+function getFeatureType(name) {
+    if (!name) return 'plot';
+    if (name.toLowerCase().endsWith('gaussian')) return 'gaussian';
+    return featureTypes[name] || 'plot';
+}
+
+function getActiveFeatureType() {
+    return getFeatureType(featureSelect.value);
+}
+
+function saveFeatureTypesToStorage() {
+    localStorage.setItem('plotDigitizerFeatureTypes', JSON.stringify(featureTypes));
+}
+
+// ── Feature type UI update ─────────────────────────────────────────────
+function updateFeatureTypeUI() {
+    const featureName = featureSelect.value;
+    const type = getFeatureType(featureName);
+
+    if (!featureName) {
+        featureTypeBadge.style.display = 'none';
+        plotCheckboxRow.style.display = 'none';
+        manualValueSection.style.display = 'none';
+        gaussianStatsSection.style.display = 'none';
+        xLabelRow.style.display = 'block';
+        yLabelRow.style.display = 'block';
+        return;
+    }
+
+    // Badge
+    const badgeInfo = {
+        plot:     ['📊 Plot',     'plot'],
+        manual_value: ['🔢 Manual', 'manual'],
+        gaussian: ['∿ Gaussian', 'gaussian']
+    };
+    const [label, cls] = badgeInfo[type];
+    featureTypeBadge.innerHTML = `<span class="feat-type-badge ${cls}">${label}</span>`;
+    featureTypeBadge.style.display = 'block';
+
+    // Checkbox row (only for non-gaussian)
+    if (type === 'gaussian') {
+        plotCheckboxRow.style.display = 'none';
+    } else {
+        plotCheckboxRow.style.display = 'flex';
+        isPlotCheckbox.checked = (type === 'plot');
+    }
+
+    // Manual value section
+    manualValueSection.style.display = (type === 'manual_value') ? 'block' : 'none';
+
+    // Gaussian stats section
+    gaussianStatsSection.style.display = (type === 'gaussian') ? 'block' : 'none';
+    if (type === 'gaussian') updateGaussianStats();
+
+    // Labels: hide x for manual_value, hide y for gaussian and manual_value
+    xLabelRow.style.display = (type === 'manual_value') ? 'none' : 'block';
+    yLabelRow.style.display = (type === 'plot') ? 'block' : 'none';
+}
+
+// Checkbox toggle: plot ↔ manual_value
+isPlotCheckbox.addEventListener('change', () => {
+    const featureName = featureSelect.value;
+    if (!featureName || getFeatureType(featureName) === 'gaussian') return;
+    featureTypes[featureName] = isPlotCheckbox.checked ? 'plot' : 'manual_value';
+    saveFeatureTypesToStorage();
+    updateFeatureTypeUI();
+    switchEditingContext();
+});
+
+// ── Gaussian computation ───────────────────────────────────────────────
+function computeGaussian() {
+    if (points.length < 1) return null;
+    const mean = points[0].x_real;
+    const peakY = points[0].y_real;
+    if (!isFinite(mean) || !isFinite(peakY) || peakY <= 0) return null;
+
+    if (points.length < 2) return { mean, std: null };
+
+    const sigmas = [];
+    for (let i = 1; i < points.length; i++) {
+        const xReal = points[i].x_real;
+        const yReal = points[i].y_real;
+        if (!isFinite(xReal) || !isFinite(yReal) || yReal <= 0 || yReal >= peakY) continue;
+        const ratio = yReal / peakY;
+        const sigma = Math.abs(xReal - mean) / Math.sqrt(-2 * Math.log(ratio));
+        if (isFinite(sigma) && sigma > 0) sigmas.push(sigma);
+    }
+    if (sigmas.length === 0) return { mean, std: null };
+    const std = sigmas.reduce((a, b) => a + b, 0) / sigmas.length;
+    return { mean, std };
+}
+
+function updateGaussianStats() {
+    const g = computeGaussian();
+    if (!g) {
+        gaussMeanDisplay.textContent = '—';
+        gaussStdDisplay.textContent = '—';
+    } else {
+        gaussMeanDisplay.textContent = g.mean.toFixed(4);
+        gaussStdDisplay.textContent = g.std != null ? g.std.toFixed(4) : '— (need curve points)';
+    }
+}
+
+// ── Storage helpers ────────────────────────────────────────────────────
 function saveFeaturesToStorage() {
     localStorage.setItem('plotDigitizerFeatures', JSON.stringify(features));
 }
@@ -576,6 +759,7 @@ function getSystemColor(systemName) {
     return systemColors[idx >= 0 ? idx % systemColors.length : 0];
 }
 
+// ── Render system list ─────────────────────────────────────────────────
 function renderSystemList() {
     systemList.innerHTML = "";
     systems.forEach((name, i) => {
@@ -601,21 +785,23 @@ function renderSystemList() {
     if (systems.includes(currentVal)) systemSelect.value = currentVal;
 }
 
+// ── Render feature list ────────────────────────────────────────────────
 function renderFeatureList() {
     featureList.innerHTML = "";
     features.forEach((f, i) => {
         const div = document.createElement("div");
         const activeSystemData = getActiveSystemData() || {};
+        const type = getFeatureType(f);
+        const typeIcons = { plot: '📊', manual_value: '🔢', gaussian: '∿' };
         div.className = "feature-item" + (activeSystemData[f] ? " saved" : "");
         div.innerHTML = `
-            <span>${f}</span>
+            <span>${typeIcons[type]} ${f}</span>
             <button onclick="renameFeature(${i})" title="Rename">✎</button>
             <button class="del" onclick="deleteFeature(${i})" title="Delete">×</button>
         `;
         featureList.appendChild(div);
     });
     
-    // Update select
     const currentVal = featureSelect.value;
     featureSelect.innerHTML = '<option value="">— select —</option>';
     features.forEach(f => {
@@ -636,8 +822,7 @@ window.renameSystem = function(idx) {
     if (newName && newName.trim() && newName !== oldName) {
         const trimmed = newName.trim();
         if (systems.map(s=>s.toLowerCase()).includes(trimmed.toLowerCase())) {
-            toast("System name already exists.", "error");
-            return;
+            toast("System name already exists.", "error"); return;
         }
         if (tempSavedData[oldName]) {
             tempSavedData[trimmed] = tempSavedData[oldName];
@@ -672,24 +857,26 @@ window.renameFeature = function(idx) {
     if (newName && newName.trim() && newName !== oldName) {
         const trimmed = newName.trim();
         if (features.map(f => f.toLowerCase()).includes(trimmed.toLowerCase())) {
-            toast("Feature name already exists.", "error");
-            return;
+            toast("Feature name already exists.", "error"); return;
         }
         Object.values(tempSavedData).forEach(systemData => {
-            if (systemData[oldName]) {
-                systemData[trimmed] = systemData[oldName];
-                delete systemData[oldName];
-            }
+            if (systemData[oldName]) { systemData[trimmed] = systemData[oldName]; delete systemData[oldName]; }
         });
         if (featureMetadata[oldName]) {
             featureMetadata[trimmed] = featureMetadata[oldName];
             delete featureMetadata[oldName];
             saveFeatureMetadataToStorage();
         }
+        if (featureTypes[oldName]) {
+            featureTypes[trimmed] = featureTypes[oldName];
+            delete featureTypes[oldName];
+            saveFeatureTypesToStorage();
+        }
         features[idx] = trimmed;
         saveFeaturesToStorage();
         renderFeatureList();
         loadSelectedFeatureMetadata();
+        updateFeatureTypeUI();
         toast(`Renamed to "${trimmed}"`, "success");
     }
 };
@@ -699,11 +886,14 @@ window.deleteFeature = function(idx) {
     if (confirm(`Delete feature "${name}"?`)) {
         Object.values(tempSavedData).forEach(systemData => delete systemData[name]);
         delete featureMetadata[name];
+        delete featureTypes[name];
         features.splice(idx, 1);
         saveFeaturesToStorage();
         saveFeatureMetadataToStorage();
+        saveFeatureTypesToStorage();
         renderFeatureList();
         loadSelectedFeatureMetadata();
+        updateFeatureTypeUI();
         toast(`Deleted "${name}"`, "warning");
     }
 };
@@ -739,12 +929,7 @@ function loadPointsFromMap(pointMap) {
         const yReal = parseFloat(yStr);
         const xImg = (xReal - calib.b) / calib.a;
         const yImg = (yReal - calib.d) / calib.c;
-        return {
-            x_img: xImg,
-            y_img: yImg,
-            x_real: xReal,
-            y_real: yReal
-        };
+        return { x_img: xImg, y_img: yImg, x_real: xReal, y_real: yReal };
     }).filter(p => isFinite(p.x_img) && isFinite(p.y_img) && isFinite(p.x_real) && isFinite(p.y_real));
 
     selectedPointIndex = -1;
@@ -758,6 +943,23 @@ function switchEditingContext() {
     const featureName = featureSelect.value;
     currentEditingKey = systemName && featureName ? `${systemName}::${featureName}` : "";
 
+    updateFeatureTypeUI();
+
+    const featureType = getActiveFeatureType();
+
+    if (featureType === 'manual_value') {
+        // Load manual value if saved
+        const systemData = tempSavedData[systemName] || {};
+        const featureData = systemData[featureName];
+        manualValueInput.value = featureData?.value != null ? featureData.value : '';
+        points = [];
+        selectedPointIndex = -1;
+        updateTable();
+        updateStatus();
+        redraw();
+        return;
+    }
+
     if (!calib.valid || !currentEditingKey) {
         points = [];
         selectedPointIndex = -1;
@@ -770,6 +972,8 @@ function switchEditingContext() {
     const systemData = tempSavedData[systemName] || {};
     const featureData = systemData[featureName];
     loadPointsFromMap(featureData?.points || {});
+
+    if (featureType === 'gaussian') updateGaussianStats();
 }
 
 function loadSelectedFeatureMetadata() {
@@ -804,7 +1008,6 @@ pdfViewer.addEventListener("drop", e => {
 });
 
 async function loadPdfFile(file) {
-    // Clear temp data from previous PDF
     tempSavedData = {};
     systems = [];
     updateSavedCount();
@@ -823,6 +1026,7 @@ async function loadPdfFile(file) {
         
         dropOverlay.classList.add("hidden");
         [prevPageBtn, nextPageBtn, zoomInBtn, zoomOutBtn, zoomFitBtn, snipBtn].forEach(b => b.disabled = false);
+        pdfViewer.style.cursor = "grab";
         
         await renderPage(currentPage);
         toast(`Loaded "${file.name}" — ${totalPages} pages`, "success");
@@ -834,13 +1038,10 @@ async function loadPdfFile(file) {
 
 async function renderPage(pageNum) {
     if (!pdfDoc) return;
-    
     const page = await pdfDoc.getPage(pageNum);
     const viewport = page.getViewport({ scale: PDF_BASE_SCALE * pdfZoom });
-    
     pdfCanvas.width = viewport.width;
     pdfCanvas.height = viewport.height;
-    
     await page.render({ canvasContext: pdfCtx, viewport }).promise;
     updatePageIndicator();
 }
@@ -853,7 +1054,6 @@ function updatePageIndicator() {
 
 prevPageBtn.addEventListener("click", async () => { if (currentPage > 1) { currentPage--; await renderPage(currentPage); } });
 nextPageBtn.addEventListener("click", async () => { if (currentPage < totalPages) { currentPage++; await renderPage(currentPage); } });
-
 zoomInBtn.addEventListener("click", async () => { pdfZoom = Math.min(3, pdfZoom + 0.25); await renderPage(currentPage); });
 zoomOutBtn.addEventListener("click", async () => { pdfZoom = Math.max(0.5, pdfZoom - 0.25); await renderPage(currentPage); });
 zoomFitBtn.addEventListener("click", async () => {
@@ -874,7 +1074,7 @@ snipBtn.addEventListener("click", () => {
     snipMode = !snipMode;
     snipBtn.classList.toggle("active", snipMode);
     snipBtn.textContent = snipMode ? "✂ Snipping..." : "✂ Snip";
-    pdfViewer.style.cursor = snipMode ? "crosshair" : "default";
+    pdfViewer.style.cursor = snipMode ? "crosshair" : "grab";
 });
 
 pdfViewer.addEventListener("mousedown", e => {
@@ -907,7 +1107,7 @@ pdfViewer.addEventListener("mouseup", e => {
     snipMode = false;
     snipBtn.classList.remove("active");
     snipBtn.textContent = "✂ Snip";
-    pdfViewer.style.cursor = "default";
+    pdfViewer.style.cursor = "grab";
 
     const sx = parseFloat(snipRect.style.left);
     const sy = parseFloat(snipRect.style.top);
@@ -939,6 +1139,67 @@ pdfViewer.addEventListener("mouseup", e => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════
+//  PDF VIEWER — PAN (right-click drag) & ZOOM (Ctrl+scroll)
+// ═══════════════════════════════════════════════════════════════════════
+
+let pdfPanActive = false;
+let pdfPanOrigin = { x: 0, y: 0 };
+let pdfScrollOrigin = { left: 0, top: 0 };
+
+// Right-click drag → pan
+pdfViewer.addEventListener("mousedown", e => {
+    if (e.button !== 2 || !pdfDoc) return;
+    pdfPanActive = true;
+    pdfPanOrigin   = { x: e.clientX, y: e.clientY };
+    pdfScrollOrigin = { left: pdfViewer.scrollLeft, top: pdfViewer.scrollTop };
+    pdfViewer.style.cursor = "grabbing";
+    e.preventDefault();
+});
+
+document.addEventListener("mousemove", e => {
+    if (!pdfPanActive) return;
+    pdfViewer.scrollLeft = pdfScrollOrigin.left - (e.clientX - pdfPanOrigin.x);
+    pdfViewer.scrollTop  = pdfScrollOrigin.top  - (e.clientY - pdfPanOrigin.y);
+});
+
+document.addEventListener("mouseup", e => {
+    if (e.button !== 2 || !pdfPanActive) return;
+    pdfPanActive = false;
+    pdfViewer.style.cursor = snipMode ? "crosshair" : (pdfDoc ? "grab" : "default");
+});
+
+// Suppress context menu inside the viewer so right-click can pan freely
+pdfViewer.addEventListener("contextmenu", e => e.preventDefault());
+
+// Ctrl+scroll → zoom toward cursor
+pdfViewer.addEventListener("wheel", async e => {
+    if (!pdfDoc || !e.ctrlKey) return;
+    e.preventDefault();
+
+    // Viewport-relative cursor position inside the viewer
+    const viewerRect    = pdfViewer.getBoundingClientRect();
+    const cx = e.clientX - viewerRect.left;
+    const cy = e.clientY - viewerRect.top;
+
+    // Capture scroll before the async re-render
+    const prevScrollLeft = pdfViewer.scrollLeft;
+    const prevScrollTop  = pdfViewer.scrollTop;
+    const prevZoom       = pdfZoom;
+
+    const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+    pdfZoom = Math.max(0.25, Math.min(5, pdfZoom * factor));
+    if (pdfZoom === prevZoom) return;
+
+    await renderPage(currentPage);
+
+    // Keep the canvas point that was under the cursor stationary.
+    // Formula: newScroll = (cursor + oldScroll) * ratio − cursor
+    const ratio = pdfZoom / prevZoom;
+    pdfViewer.scrollLeft = (cx + prevScrollLeft) * ratio - cx;
+    pdfViewer.scrollTop  = (cy + prevScrollTop)  * ratio - cy;
+}, { passive: false });
+
+// ═══════════════════════════════════════════════════════════════════════
 //  DIGITIZER CORE
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -968,22 +1229,73 @@ function redraw() {
 
     drawSavedSystemOverlays();
 
+    // Gaussian curve overlay (drawn before points so points appear on top)
+    if (getActiveFeatureType() === 'gaussian' && calib.valid && points.length >= 2) {
+        const g = computeGaussian();
+        if (g && g.std) {
+            drawGaussianCurve(g.mean, g.std, points[0].y_real);
+        }
+    }
+
     // Active editable points
+    const isGaussianMode = getActiveFeatureType() === 'gaussian';
     points.forEach((p, i) => {
         const d = i2d(p.x_img, p.y_img);
         const isSelected = i === selectedPointIndex;
+        const isPeak = isGaussianMode && i === 0;
+
+        const activeColor = isPeak ? '#fbbf24' : getSystemColor(systemSelect.value);
+
         ctx.beginPath();
-        ctx.arc(d.x, d.y, isSelected ? pointRadius + 2 : pointRadius, 0, Math.PI * 2);
-        const activeColor = getSystemColor(systemSelect.value);
+        ctx.arc(d.x, d.y, isSelected ? pointRadius + 2 : (isPeak ? pointRadius + 1 : pointRadius), 0, Math.PI * 2);
         ctx.fillStyle = isSelected ? "#ffffff" : activeColor;
         ctx.fill();
-        ctx.strokeStyle = isSelected ? activeColor : "#fff";
-        ctx.lineWidth = isSelected ? 2.5 : 1.5;
+        ctx.strokeStyle = isSelected ? activeColor : (isPeak ? '#fff' : "#fff");
+        ctx.lineWidth = isSelected ? 2.5 : (isPeak ? 2 : 1.5);
         ctx.stroke();
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 10px sans-serif";
-        ctx.fillText(i + 1, d.x + 8, d.y - 8);
+
+        ctx.fillStyle = isPeak ? '#fbbf24' : "#fff";
+        ctx.font = isPeak ? "bold 11px sans-serif" : "bold 10px sans-serif";
+        ctx.fillText(isPeak ? "μ" : String(i + 1), d.x + 8, d.y - 8);
     });
+}
+
+function drawGaussianCurve(mean, std, peakY) {
+    if (!calib.valid) return;
+    const xMin = mean - 3.5 * std;
+    const xMax = mean + 3.5 * std;
+    const steps = 120;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.75)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+
+    for (let i = 0; i <= steps; i++) {
+        const xReal = xMin + (i / steps) * (xMax - xMin);
+        const yReal = peakY * Math.exp(-0.5 * Math.pow((xReal - mean) / std, 2));
+        const xImg = (xReal - calib.b) / calib.a;
+        const yImg = (yReal - calib.d) / calib.c;
+        const d = i2d(xImg, yImg);
+        if (i === 0) ctx.moveTo(d.x, d.y);
+        else ctx.lineTo(d.x, d.y);
+    }
+    ctx.stroke();
+
+    // Mean vertical dashed line
+    const meanXImg = (mean - calib.b) / calib.a;
+    const topD = i2d(meanXImg, -100);
+    const botD = i2d(meanXImg, (sourceImage ? sourceImage.height + 100 : 9999));
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(topD.x, topD.y);
+    ctx.lineTo(botD.x, botD.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
 }
 
 function drawCross(x, y, color, size, label) {
@@ -1002,20 +1314,16 @@ function drawSavedSystemOverlays() {
         const systemData = tempSavedData[systemName];
         const featureData = systemData && systemData[activeFeature];
         if (!featureData || !featureData.points) return;
-
         if (systemName === systemSelect.value) return;
 
         const color = getSystemColor(systemName);
-
         Object.entries(featureData.points).forEach(([xStr, yStr], idx) => {
             const xReal = parseFloat(xStr);
             const yReal = parseFloat(yStr);
             if (!isFinite(xReal) || !isFinite(yReal)) return;
-
             const xImg = (xReal - calib.b) / calib.a;
             const yImg = (yReal - calib.d) / calib.c;
             const d = i2d(xImg, yImg);
-
             ctx.beginPath();
             ctx.arc(d.x, d.y, Math.max(2, pointRadius - 1), 0, Math.PI * 2);
             ctx.fillStyle = color;
@@ -1025,7 +1333,6 @@ function drawSavedSystemOverlays() {
             ctx.strokeStyle = color;
             ctx.lineWidth = 1.2;
             ctx.stroke();
-
             ctx.fillStyle = color;
             ctx.font = "10px sans-serif";
             ctx.fillText(systemName, d.x + 6, d.y + 12 + (idx % 2) * 10);
@@ -1046,9 +1353,26 @@ function updateStatus() {
         modeIndicator.textContent = "CALIBRATION";
         modeIndicator.className = "calibration";
     } else if (appState === "digitization") {
-        statusText.textContent = `${points.length} points • Left-click to add • Ctrl+Z undo • Scroll to zoom`;
-        modeIndicator.textContent = "DIGITIZING";
-        modeIndicator.className = "digitization";
+        const fType = getActiveFeatureType();
+        if (fType === 'gaussian') {
+            if (points.length === 0) {
+                statusText.textContent = "Gaussian: click the PEAK of the distribution first (= μ)";
+            } else {
+                const g = computeGaussian();
+                const stdTxt = g?.std != null ? `  σ≈${g.std.toFixed(4)}` : '  (need more pts for σ)';
+                statusText.textContent = `Gaussian: ${points.length} pts  μ≈${g?.mean?.toFixed(4)}${stdTxt}`;
+            }
+            modeIndicator.textContent = "GAUSSIAN";
+            modeIndicator.className = "gaussian";
+        } else if (fType === 'manual_value') {
+            statusText.textContent = "Manual value feature — enter value in the right pane";
+            modeIndicator.textContent = "MANUAL";
+            modeIndicator.className = "edit";
+        } else {
+            statusText.textContent = `${points.length} points • Left-click to add • Ctrl+Z undo • Scroll to zoom`;
+            modeIndicator.textContent = "DIGITIZING";
+            modeIndicator.className = "digitization";
+        }
     } else if (appState === "edit") {
         statusText.textContent = "Click point to select • Drag to move • Right-click for options";
         modeIndicator.textContent = "EDIT MODE";
@@ -1060,10 +1384,13 @@ function updateStatus() {
 
 function updateTable() {
     dataBody.innerHTML = "";
+    const isGaussian = getActiveFeatureType() === 'gaussian';
     points.forEach((p, i) => {
         const tr = document.createElement("tr");
-        tr.className = i === selectedPointIndex ? "selected" : "";
-        tr.innerHTML = `<td>${i+1}</td><td>${p.x_real.toFixed(4)}</td><td>${p.y_real.toFixed(4)}</td>
+        const isPeak = isGaussian && i === 0;
+        tr.className = (i === selectedPointIndex ? "selected" : "") + (isPeak ? " peak-row" : "");
+        const label = isPeak ? "μ" : String(i + 1);
+        tr.innerHTML = `<td>${label}</td><td>${p.x_real.toFixed(4)}</td><td>${p.y_real.toFixed(4)}</td>
             <td><button class="del-btn" onclick="deletePoint(${i})">×</button></td>`;
         tr.addEventListener("click", () => { selectedPointIndex = i; redraw(); updateTable(); });
         dataBody.appendChild(tr);
@@ -1075,6 +1402,7 @@ window.deletePoint = function(idx) {
     if (selectedPointIndex >= points.length) selectedPointIndex = -1;
     recalculatePoints();
     redraw(); updateTable(); updateStatus();
+    if (getActiveFeatureType() === 'gaussian') updateGaussianStats();
 };
 
 function receiveImage(img) {
@@ -1151,7 +1479,6 @@ canvas.addEventListener("mousedown", e => {
     const dx = e.clientX - r.left, dy = e.clientY - r.top;
     const img = d2i(dx, dy);
     
-    // Right/middle click = pan
     if (e.button === 1 || e.button === 2) {
         isPanning = true;
         panStart = {x:e.clientX, y:e.clientY};
@@ -1164,7 +1491,6 @@ canvas.addEventListener("mousedown", e => {
     if (e.button !== 0) return;
     contextMenu.style.display = "none";
     
-    // Edit mode: select or start drag
     if (appState === "edit") {
         const hitIdx = findPointAt(dx, dy);
         if (hitIdx >= 0) {
@@ -1178,7 +1504,6 @@ canvas.addEventListener("mousedown", e => {
         return;
     }
     
-    // Calibration
     if (appState === "calibration") {
         calibClicks.push({x:img.x, y:img.y});
         redraw();
@@ -1191,12 +1516,17 @@ canvas.addEventListener("mousedown", e => {
         return;
     }
     
-    // Digitization
     if (appState === "digitization" && calib.valid) {
+        // Manual value features don't accept canvas clicks
+        if (getActiveFeatureType() === 'manual_value') {
+            toast("This is a manual value feature — enter the value in the right pane.", "warning");
+            return;
+        }
         const xr = calib.a * img.x + calib.b;
         const yr = calib.c * img.y + calib.d;
         points.push({x_img:img.x, y_img:img.y, x_real:xr, y_real:yr});
         redraw(); updateStatus(); updateTable();
+        if (getActiveFeatureType() === 'gaussian') updateGaussianStats();
     }
 });
 
@@ -1211,7 +1541,6 @@ canvas.addEventListener("mousemove", e => {
         return;
     }
     
-    // Dragging a point
     if (draggingPoint && selectedPointIndex >= 0) {
         const img = d2i(dx, dy);
         points[selectedPointIndex].x_img = img.x;
@@ -1219,6 +1548,7 @@ canvas.addEventListener("mousemove", e => {
         points[selectedPointIndex].x_real = calib.a * img.x + calib.b;
         points[selectedPointIndex].y_real = calib.c * img.y + calib.d;
         redraw(); updateTable();
+        if (getActiveFeatureType() === 'gaussian') updateGaussianStats();
         return;
     }
     
@@ -1226,14 +1556,12 @@ canvas.addEventListener("mousemove", e => {
     
     const img = d2i(dx, dy);
     
-    // Cursor style in edit mode
     if (appState === "edit") {
         canvas.style.cursor = findPointAt(dx, dy) >= 0 ? "grab" : "default";
     } else {
         canvas.style.cursor = "crosshair";
     }
     
-    // Coord readout
     coordReadout.style.display = "block";
     if (calib.valid) {
         const xr = calib.a * img.x + calib.b;
@@ -1243,7 +1571,6 @@ canvas.addEventListener("mousemove", e => {
         coordReadout.textContent = `px: ${Math.round(img.x)}, ${Math.round(img.y)}`;
     }
     
-    // Magnifier
     if (!magnifierEnabled) {
         magnifier.style.display = "none";
         return;
@@ -1258,13 +1585,18 @@ canvas.addEventListener("mousemove", e => {
     magCtx.clearRect(0,0,150,150);
     magCtx.imageSmoothingEnabled = false;
     magCtx.drawImage(sourceImage, img.x-37.5, img.y-37.5, 75, 75, 0, 0, 150, 150);
-    magCtx.strokeStyle = getSystemColor(systemSelect.value); magCtx.lineWidth = 1;
+    const crossColor = getActiveFeatureType() === 'gaussian' ? '#fbbf24' : getSystemColor(systemSelect.value);
+    magCtx.strokeStyle = crossColor; magCtx.lineWidth = 1;
     magCtx.beginPath(); magCtx.moveTo(75,60); magCtx.lineTo(75,90); magCtx.stroke();
     magCtx.beginPath(); magCtx.moveTo(60,75); magCtx.lineTo(90,75); magCtx.stroke();
 });
 
 canvas.addEventListener("mouseup", e => {
     if (e.button === 1 || e.button === 2) isPanning = false;
+    if (draggingPoint) {
+        draggingPoint = false;
+        if (getActiveFeatureType() === 'gaussian') updateGaussianStats();
+    }
     draggingPoint = false;
 });
 
@@ -1278,7 +1610,6 @@ canvas.addEventListener("mouseleave", () => {
 canvas.addEventListener("contextmenu", e => {
     e.preventDefault();
     if (appState !== "edit" && appState !== "digitization") return;
-    
     const r = canvas.getBoundingClientRect();
     const hitIdx = findPointAt(e.clientX - r.left, e.clientY - r.top);
     if (hitIdx >= 0) {
@@ -1298,7 +1629,6 @@ function findPointAt(dx, dy) {
     return -1;
 }
 
-// Context menu actions
 $("ctxDeletePoint").addEventListener("click", () => {
     if (selectedPointIndex >= 0) deletePoint(selectedPointIndex);
     contextMenu.style.display = "none";
@@ -1320,7 +1650,6 @@ document.addEventListener("click", e => {
     if (!contextMenu.contains(e.target)) contextMenu.style.display = "none";
 });
 
-// Zoom
 canvas.addEventListener("wheel", e => {
     e.preventDefault();
     if (!sourceImage) return;
@@ -1335,13 +1664,13 @@ canvas.addEventListener("wheel", e => {
     redraw();
 }, {passive:false});
 
-// Keyboard
 document.addEventListener("keydown", e => {
     if ((e.ctrlKey || e.metaKey) && e.key === "z") {
         if ((appState === "digitization" || appState === "edit") && points.length > 0) {
             points.pop();
             if (selectedPointIndex >= points.length) selectedPointIndex = -1;
             redraw(); updateStatus(); updateTable();
+            if (getActiveFeatureType() === 'gaussian') updateGaussianStats();
         }
         e.preventDefault();
     }
@@ -1381,12 +1710,12 @@ confirmBtn.addEventListener("click", () => {
     editModeBtn.style.display = "block";
     calibPanel.style.display = "block";
     
-    // Populate editable calib panel
     $("calibXmin").value = xmin;
     $("calibXmax").value = xmax;
     $("calibYmin").value = ymin;
     $("calibYmax").value = ymax;
     
+    switchEditingContext();
     updateStatus(); redraw();
     toast("Calibrated! Click on data points.", "success");
 });
@@ -1418,14 +1747,14 @@ recalibBtn.addEventListener("click", () => {
     const ymax = parseFloat($("calibYmax").value);
     
     if (!isFinite(xmin) || !isFinite(xmax) || !isFinite(ymin) || !isFinite(ymax)) {
-        toast("Invalid calibration values.", "error");
-        return;
+        toast("Invalid calibration values.", "error"); return;
     }
     
     calibValues = {xmin, xmax, ymin, ymax};
     applyCalibration();
     recalculatePoints();
     redraw(); updateTable();
+    if (getActiveFeatureType() === 'gaussian') updateGaussianStats();
     toast("Calibration updated. Points recalculated.", "success");
 });
 
@@ -1434,6 +1763,7 @@ resetPtsBtn.addEventListener("click", () => {
     points = [];
     selectedPointIndex = -1;
     redraw(); updateStatus(); updateTable();
+    if (getActiveFeatureType() === 'gaussian') updateGaussianStats();
     toast("Points cleared.", "warning");
 });
 
@@ -1485,11 +1815,18 @@ addFeatureBtn.addEventListener("click", () => {
     }
     features.push(name);
     saveFeaturesToStorage();
+    // Auto-set type for non-gaussian features (default 'plot')
+    if (!getFeatureType(name).startsWith('g')) {
+        featureTypes[name] = featureTypes[name] || 'plot';
+        saveFeatureTypesToStorage();
+    }
     renderFeatureList();
     featureSelect.value = name;
     featureInput.value = "";
     switchEditingContext();
-    toast(`Added "${name}"`, "success");
+    const type = getFeatureType(name);
+    const typeMsg = type === 'gaussian' ? ' (Gaussian mode auto-detected)' : '';
+    toast(`Added "${name}"${typeMsg}`, "success");
 });
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1502,27 +1839,63 @@ saveFeatureBtn.addEventListener("click", () => {
     if (!systemName) { toast("Select a system.", "error"); return; }
     const feat = featureSelect.value;
     if (!feat) { toast("Select a feature.", "error"); return; }
-    const xLabel = xLabelInput.value.trim();
-    const yLabel = yLabelInput.value.trim();
-    if (!xLabel || !yLabel) { toast("Enter both X and Y labels.", "error"); return; }
+
+    const featureType = getFeatureType(feat);
+
+    // ── Manual value ────────────────────────────────────────────────
+    if (featureType === 'manual_value') {
+        const val = parseFloat(manualValueInput.value);
+        if (!isFinite(val)) { toast("Enter a valid number in the manual value field.", "error"); return; }
+        const systemData = getActiveSystemData();
+        systemData[feat] = { type: 'manual_value', value: val };
+        renderSystemList();
+        renderFeatureList();
+        toast(`Saved manual value ${val} for "${feat}" / "${systemName}"`, "success");
+        return;
+    }
+
+    // Both plot and gaussian require calibration + points
     if (!calib.valid) { toast("Complete calibration first.", "error"); return; }
     if (points.length === 0) { toast("No points to save.", "error"); return; }
 
-    featureMetadata[feat] = {
-        x_label: xLabel,
-        y_label: yLabel
-    };
-    saveFeatureMetadataToStorage();
+    // ── Gaussian ────────────────────────────────────────────────────
+    if (featureType === 'gaussian') {
+        const xLabel = xLabelInput.value.trim();
+        if (!xLabel) { toast("Enter X label (axis name).", "error"); return; }
+        const g = computeGaussian();
+        if (!g || g.std == null) {
+            toast("Need at least 2 points: the peak (μ) + one curve point to estimate σ.", "error");
+            return;
+        }
+        featureMetadata[feat] = { x_label: xLabel, y_label: '' };
+        saveFeatureMetadataToStorage();
+        const systemData = getActiveSystemData();
+        systemData[feat] = {
+            type: 'gaussian',
+            points: buildPointsMap(),
+            mean: g.mean,
+            std: g.std
+        };
+        renderSystemList();
+        renderFeatureList();
+        switchEditingContext();
+        toast(`Saved Gaussian "${feat}" — μ=${g.mean.toFixed(4)}, σ=${g.std.toFixed(4)}`, "success");
+        return;
+    }
 
+    // ── Standard plot ───────────────────────────────────────────────
+    const xLabel = xLabelInput.value.trim();
+    const yLabel = yLabelInput.value.trim();
+    if (!xLabel || !yLabel) { toast("Enter both X and Y labels.", "error"); return; }
+
+    featureMetadata[feat] = { x_label: xLabel, y_label: yLabel };
+    saveFeatureMetadataToStorage();
     const systemData = getActiveSystemData();
-    systemData[feat] = {
-        points: buildPointsMap()
-    };
-    
+    systemData[feat] = { type: 'plot', points: buildPointsMap() };
     renderSystemList();
     renderFeatureList();
     switchEditingContext();
-    toast(`Saved "${feat}" for system "${systemName}" — ${points.length} points`, "success");
+    toast(`Saved "${feat}" for "${systemName}" — ${points.length} points`, "success");
 });
 
 saveExcelBtn.addEventListener("click", () => {
@@ -1530,34 +1903,66 @@ saveExcelBtn.addEventListener("click", () => {
     const systemNames = Object.keys(tempSavedData).filter(name => Object.keys(tempSavedData[name]).length > 0);
     if (systemNames.length === 0) { toast("No saved systems/features to export.", "error"); return; }
 
+    // Collect all feature names across all systems
+    const allFeatureNames = [];
+    systemNames.forEach(systemName => {
+        Object.keys(tempSavedData[systemName]).forEach(feat => {
+            if (!allFeatureNames.includes(feat)) allFeatureNames.push(feat);
+        });
+    });
+
+    // Build column headers — gaussian features get two columns (_mean, _std)
+    const featureColumnMap = {};
+    allFeatureNames.forEach(feat => {
+        const type = getFeatureType(feat);
+        featureColumnMap[feat] = type === 'gaussian'
+            ? [feat + '_mean', feat + '_std']
+            : [feat];
+    });
+    const featureColumns = allFeatureNames.flatMap(f => featureColumnMap[f]);
+    const header = ["PDF File", "System Name", ...featureColumns];
+
+    // Build rows
     const rows = systemNames.map(systemName => {
         const row = { "PDF File": pdfFilename, "System Name": systemName };
-        Object.entries(tempSavedData[systemName]).forEach(([featureName, payload]) => {
-            row[featureName] = JSON.stringify({
-                x_label: featureMetadata[featureName]?.x_label || "",
-                y_label: featureMetadata[featureName]?.y_label || "",
-                points: payload.points || {}
-            });
+        allFeatureNames.forEach(feat => {
+            const payload = (tempSavedData[systemName] || {})[feat];
+            const type = getFeatureType(feat);
+
+            if (!payload) {
+                if (type === 'gaussian') {
+                    row[feat + '_mean'] = '';
+                    row[feat + '_std'] = '';
+                } else {
+                    row[feat] = '';
+                }
+                return;
+            }
+
+            if (type === 'gaussian') {
+                row[feat + '_mean'] = payload.mean != null ? payload.mean : '';
+                row[feat + '_std']  = payload.std  != null ? payload.std  : '';
+            } else if (type === 'manual_value') {
+                row[feat] = payload.value != null ? payload.value : '';
+            } else {
+                // standard plot — JSON payload
+                row[feat] = JSON.stringify({
+                    x_label: featureMetadata[feat]?.x_label || "",
+                    y_label: featureMetadata[feat]?.y_label || "",
+                    points:  payload.points || {}
+                });
+            }
         });
         return row;
     });
 
-    const allFeatures = [];
-    rows.forEach(row => {
-        Object.keys(row).forEach(key => {
-            if (!["PDF File", "System Name"].includes(key) && !allFeatures.includes(key)) {
-                allFeatures.push(key);
-            }
-        });
-    });
-
+    // Normalize rows (fill missing keys)
     const normalizedRows = rows.map(row => {
-        const normalized = { "PDF File": row["PDF File"], "System Name": row["System Name"] || "" };
-        allFeatures.forEach(f => { normalized[f] = row[f] !== undefined ? row[f] : ""; });
-        return normalized;
+        const out = { "PDF File": row["PDF File"], "System Name": row["System Name"] };
+        featureColumns.forEach(col => { out[col] = row[col] !== undefined ? row[col] : ''; });
+        return out;
     });
 
-    const header = ["PDF File", "System Name", ...allFeatures];
     const ws = XLSX.utils.json_to_sheet(normalizedRows, { header });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "paper_data");
@@ -1567,7 +1972,7 @@ saveExcelBtn.addEventListener("click", () => {
     XLSX.writeFile(wb, outputName);
 
     updateSavedCount();
-    toast(`Saved ${outputName} with ${systemNames.length} systems.`, "success", 4000);
+    toast(`Exported ${outputName} with ${systemNames.length} systems.`, "success", 4000);
 });
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1580,7 +1985,6 @@ function setupResize(handleId, paneId, dir) {
         e.preventDefault();
         const startX = e.clientX, startW = pane.getBoundingClientRect().width;
         handle.classList.add("active");
-        
         function onMove(ev) {
             const delta = dir === "left" ? (ev.clientX - startX) : (startX - ev.clientX);
             pane.style.width = Math.max(180, startW + delta) + "px";
@@ -1601,6 +2005,7 @@ setupResize("resizeRight", "rightPane", "right");
 // ── Init ───────────────────────────────────────────────────────────────
 renderSystemList();
 renderFeatureList();
+updateFeatureTypeUI();
 requestAnimationFrame(resizeCanvas);
 </script>
 </body>
