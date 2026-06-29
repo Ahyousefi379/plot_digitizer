@@ -483,6 +483,16 @@
             Plot digitization
         </label>
 
+        <label id="barChartCheckboxRow" class="checkbox-row" style="display:none;">
+            <input type="checkbox" id="isBarChartCheckbox" />
+            Bar Chart (Sequential X)
+        </label>
+
+        <div id="barChartValuesRow" style="display:none; margin-top:4px;">
+            <label>X values (comma separated)</label>
+            <input type="text" id="barChartValuesInput" placeholder="e.g. 1, 2, 5, 10, 20" />
+        </div>
+
         <div id="manualValueSection">
             <label>Manual value</label>
             <input type="number" id="manualValueInput" step="any" placeholder="Enter a number…" />
@@ -644,6 +654,10 @@ const masterCount = $("masterCount");
 const contextMenu = $("contextMenu");
 const isPlotCheckbox = $("isPlotCheckbox");
 const plotCheckboxRow = $("plotCheckboxRow");
+const isBarChartCheckbox = $("isBarChartCheckbox");
+const barChartValuesInput = $("barChartValuesInput");
+const barChartCheckboxRow = $("barChartCheckboxRow");
+const barChartValuesRow = $("barChartValuesRow");
 const manualValueSection = $("manualValueSection");
 const manualValueInput = $("manualValueInput");
 const gaussianStatsSection = $("gaussianStatsSection");
@@ -687,6 +701,8 @@ function updateFeatureTypeUI() {
     if (!featureName) {
         featureTypeBadge.style.display = 'none';
         plotCheckboxRow.style.display = 'none';
+        barChartCheckboxRow.style.display = 'none';
+        barChartValuesRow.style.display = 'none';
         manualValueSection.style.display = 'none';
         gaussianStatsSection.style.display = 'none';
         xLabelRow.style.display = 'block';
@@ -705,9 +721,13 @@ function updateFeatureTypeUI() {
 
     if (type === 'gaussian') {
         plotCheckboxRow.style.display = 'none';
+        barChartCheckboxRow.style.display = 'none';
+        barChartValuesRow.style.display = 'none';
     } else {
         plotCheckboxRow.style.display = 'flex';
         isPlotCheckbox.checked = (type === 'plot');
+        barChartCheckboxRow.style.display = (type === 'plot') ? 'flex' : 'none';
+        barChartValuesRow.style.display = (type === 'plot' && isBarChartCheckbox.checked) ? 'block' : 'none';
     }
 
     manualValueSection.style.display = (type === 'manual_value') ? 'block' : 'none';
@@ -724,6 +744,27 @@ isPlotCheckbox.addEventListener('change', () => {
     saveFeatureTypesToStorage();
     updateFeatureTypeUI();
     switchEditingContext();
+});
+
+isBarChartCheckbox.addEventListener("change", e => { 
+    const fn = featureSelect.value; 
+    if (fn) {
+        if (!featureMetadata[fn]) featureMetadata[fn] = {};
+        featureMetadata[fn].is_bar_chart = e.target.checked;
+        saveFeatureMetadataToStorage();
+        updateFeatureTypeUI();
+        recalculatePoints(); redraw(); updateTable();
+    }
+});
+
+barChartValuesInput.addEventListener("input", e => { 
+    const fn = featureSelect.value; 
+    if (fn) {
+        if (!featureMetadata[fn]) featureMetadata[fn] = {};
+        featureMetadata[fn].bar_x_values = e.target.value;
+        saveFeatureMetadataToStorage();
+        recalculatePoints(); redraw(); updateTable();
+    } 
 });
 
 // ── Gaussian computation ───────────────────────────────────────────────
@@ -932,9 +973,17 @@ function switchEditingContext() {
 
 function loadSelectedFeatureMetadata() {
     const fn=featureSelect.value;
-    if (!fn||!featureMetadata[fn]) { xLabelInput.value=""; yLabelInput.value=""; return; }
+    if (!fn||!featureMetadata[fn]) { 
+        xLabelInput.value=""; 
+        yLabelInput.value=""; 
+        isBarChartCheckbox.checked=false;
+        barChartValuesInput.value="";
+        return; 
+    }
     xLabelInput.value=featureMetadata[fn].x_label||"";
     yLabelInput.value=featureMetadata[fn].y_label||"";
+    isBarChartCheckbox.checked=!!featureMetadata[fn].is_bar_chart;
+    barChartValuesInput.value=featureMetadata[fn].bar_x_values||"";
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1328,19 +1377,19 @@ canvas.addEventListener("mousedown", e => {
     if (e.button!==0) return; contextMenu.style.display="none";
     if (appState==="edit") { const hi=findPointAt(dx,dy); if(hi>=0){selectedPointIndex=hi;draggingPoint=true;}else{selectedPointIndex=-1;} redraw();updateTable(); return; }
     if (appState==="calibration") { calibClicks.push({x:img.x,y:img.y}); redraw(); if(calibClicks.length>=4){appState="calibration_form";calibForm.style.display="block";$("fXmin").focus();} updateStatus(); return; }
-    if (appState==="digitization"&&calib.valid) { if(getActiveFeatureType()==='manual_value'){toast("This is a manual value feature — enter the value in the right pane.","warning");return;} const xr=calib.a*img.x+calib.b, yr=calib.c*img.y+calib.d; points.push({x_img:img.x,y_img:img.y,x_real:xr,y_real:yr}); redraw();updateStatus();updateTable(); if(getActiveFeatureType()==='gaussian')updateGaussianStats(); }
+    if (appState==="digitization"&&calib.valid) { if(getActiveFeatureType()==='manual_value'){toast("This is a manual value feature — enter the value in the right pane.","warning");return;} const xr=calib.a*img.x+calib.b, yr=calib.c*img.y+calib.d; points.push({x_img:img.x,y_img:img.y,x_real:getSequentialX(points.length, xr),y_real:yr}); redraw();updateStatus();updateTable(); if(getActiveFeatureType()==='gaussian')updateGaussianStats(); }
 });
 
 canvas.addEventListener("mousemove", e => {
     const r=canvas.getBoundingClientRect(), dx=e.clientX-r.left, dy=e.clientY-r.top;
     if (isPanning) { T.offsetX=panOffStart.x+(e.clientX-panStart.x); T.offsetY=panOffStart.y+(e.clientY-panStart.y); redraw(); return; }
-    if (draggingPoint&&selectedPointIndex>=0) { const img=d2i(dx,dy); points[selectedPointIndex].x_img=img.x; points[selectedPointIndex].y_img=img.y; points[selectedPointIndex].x_real=calib.a*img.x+calib.b; points[selectedPointIndex].y_real=calib.c*img.y+calib.d; redraw();updateTable(); if(getActiveFeatureType()==='gaussian')updateGaussianStats(); return; }
+    if (draggingPoint&&selectedPointIndex>=0) { const img=d2i(dx,dy); points[selectedPointIndex].x_img=img.x; points[selectedPointIndex].y_img=img.y; points[selectedPointIndex].x_real=getSequentialX(selectedPointIndex, calib.a*img.x+calib.b); points[selectedPointIndex].y_real=calib.c*img.y+calib.d; redraw();updateTable(); if(getActiveFeatureType()==='gaussian')updateGaussianStats(); return; }
     if (!sourceImage) return;
     const img=d2i(dx,dy);
     if (appState==="edit") canvas.style.cursor=findPointAt(dx,dy)>=0?"grab":"default";
     else canvas.style.cursor="crosshair";
     coordReadout.style.display="block";
-    if (calib.valid) { const xr=calib.a*img.x+calib.b, yr=calib.c*img.y+calib.d; coordReadout.textContent=`x: ${xr.toFixed(4)}  y: ${yr.toFixed(4)}`; } else { coordReadout.textContent=`px: ${Math.round(img.x)}, ${Math.round(img.y)}`; }
+    if (calib.valid) { const xr=getSequentialX(draggingPoint&&selectedPointIndex>=0?selectedPointIndex:points.length, calib.a*img.x+calib.b), yr=calib.c*img.y+calib.d; coordReadout.textContent=`x: ${xr.toFixed(4)}  y: ${yr.toFixed(4)}`; } else { coordReadout.textContent=`px: ${Math.round(img.x)}, ${Math.round(img.y)}`; }
     if (!magnifierEnabled) { magnifier.style.display="none"; return; }
     magnifier.style.display="block"; let mx=e.clientX+20,my=e.clientY+20; if(mx+154>window.innerWidth)mx=e.clientX-174; if(my+154>window.innerHeight)my=e.clientY-174; magnifier.style.left=Math.max(0,mx)+"px";magnifier.style.top=Math.max(0,my)+"px";
     magCtx.clearRect(0,0,150,150); magCtx.imageSmoothingEnabled=false; magCtx.drawImage(sourceImage,img.x-37.5,img.y-37.5,75,75,0,0,150,150);
@@ -1377,8 +1426,18 @@ confirmBtn.addEventListener("click", () => {
     switchEditingContext(); updateStatus(); redraw(); toast("Calibrated! Click on data points.","success");
 });
 
+function getSequentialX(idx, fallbackX) {
+    const fn=featureSelect.value;
+    if (fn && featureMetadata[fn] && featureMetadata[fn].is_bar_chart && featureMetadata[fn].bar_x_values) {
+        const seqVals = featureMetadata[fn].bar_x_values.split(',').map(v=>parseFloat(v.trim())).filter(v=>isFinite(v));
+        if (seqVals.length > 0) {
+            return seqVals[idx < seqVals.length ? idx : seqVals.length - 1];
+        }
+    }
+    return fallbackX;
+}
 function applyCalibration() { const {xmin,xmax,ymin,ymax}=calibValues; const x1=calibClicks[0].x,x2=calibClicks[1].x,y3=calibClicks[2].y,y4=calibClicks[3].y; calib.a=(xmax-xmin)/(x2-x1);calib.b=xmin-calib.a*x1;calib.c=(ymax-ymin)/(y4-y3);calib.d=ymax-calib.c*y4;calib.valid=true; }
-function recalculatePoints() { if(!calib.valid)return; points.forEach(p=>{p.x_real=calib.a*p.x_img+calib.b; p.y_real=calib.c*p.y_img+calib.d;}); }
+function recalculatePoints() { if(!calib.valid)return; points.forEach((p, idx)=>{p.x_real=getSequentialX(idx, calib.a*p.x_img+calib.b); p.y_real=calib.c*p.y_img+calib.d;}); }
 
 recalibBtn.addEventListener("click", () => {
     const xmin=parseFloat($("calibXmin").value), xmax=parseFloat($("calibXmax").value), ymin=parseFloat($("calibYmin").value), ymax=parseFloat($("calibYmax").value);
