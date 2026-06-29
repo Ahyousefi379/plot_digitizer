@@ -1522,7 +1522,7 @@ saveFeatureBtn.addEventListener("click", () => {
     if (featureType === 'gaussian') {
         const xLabel = xLabelInput.value.trim(); if (!xLabel) { toast("Enter X label (axis name).", "error"); return; }
         const g = computeGaussian(); if (!g || g.std == null) { toast("Need at least 2 points: the peak (μ) + one curve point to estimate σ.", "error"); return; }
-        featureMetadata[feat] = { x_label:xLabel, y_label:'' }; saveFeatureMetadataToStorage();
+        if (!featureMetadata[feat]) featureMetadata[feat] = {}; featureMetadata[feat].x_label=xLabel; featureMetadata[feat].y_label=''; saveFeatureMetadataToStorage();
         const systemData = getActiveSystemData(); systemData[feat] = { type:'gaussian', points:buildPointsMap(), mean:g.mean, std:g.std };
         renderSystemList(); renderFeatureList(); switchEditingContext();
         toast(`Saved Gaussian "${feat}" — μ=${g.mean.toFixed(4)}, σ=${g.std.toFixed(4)}`, "success"); return;
@@ -1530,7 +1530,7 @@ saveFeatureBtn.addEventListener("click", () => {
 
     const xLabel = xLabelInput.value.trim(), yLabel = yLabelInput.value.trim();
     if (!xLabel || !yLabel) { toast("Enter both X and Y labels.", "error"); return; }
-    featureMetadata[feat] = { x_label:xLabel, y_label:yLabel }; saveFeatureMetadataToStorage();
+    if (!featureMetadata[feat]) featureMetadata[feat] = {}; featureMetadata[feat].x_label=xLabel; featureMetadata[feat].y_label=yLabel; saveFeatureMetadataToStorage();
     const systemData = getActiveSystemData(); systemData[feat] = { type:'plot', points:buildPointsMap() };
     renderSystemList(); renderFeatureList(); switchEditingContext();
     toast(`Saved "${feat}" for "${systemName}" — ${points.length} points`, "success");
