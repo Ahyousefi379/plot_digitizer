@@ -6,6 +6,7 @@
     <title>Plot Digitizer</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf_viewer.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -65,7 +66,6 @@
         #pdfViewer {
             flex: 1; overflow: auto; background: #0f172a;
             position: relative; padding: 16px; cursor: grab;
-            user-select: none; -webkit-user-select: none;
             overflow-anchor: none;
         }
         #pdfCanvasWrap {
@@ -77,17 +77,45 @@
             position: relative;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             transition: box-shadow 0.1s;
+            border: 1px solid #475569;
+            background: #fff;
         }
         .pdf-page:hover { box-shadow: 0 14px 40px rgba(0,0,0,0.6); }
         .pdf-page canvas {
-            background: #fff; display: block;
-            border: 1px solid #475569; touch-action: none;
+            display: block; touch-action: none;
+        }
+        /* ── PDF Text Layer ──────────────────────────── */
+        #pdfViewer .textLayer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            line-height: 1.0;
+            pointer-events: auto;
+            user-select: text !important;
+            -webkit-user-select: text !important;
+        }
+        #pdfViewer .textLayer span,
+        #pdfViewer .textLayer div {
+            color: transparent !important;
+            cursor: text;
+        }
+        #pdfViewer.snip-mode .textLayer {
+            pointer-events: none !important;
+            user-select: none !important;
+        }
+        #pdfViewer .textLayer ::selection {
+            background: rgba(78, 146, 255, 0.5);
+            color: transparent;
         }
         .pdf-page-num {
             position: absolute; top: 6px; right: 6px;
             background: rgba(15,23,42,0.8); color: #94a3b8;
             font-size: 10px; padding: 2px 7px; border-radius: 3px;
             pointer-events: none; z-index: 5; font-weight: 600;
+            user-select: none;
         }
         #pageIndicator {
             text-align: center; padding: 6px 0; color: #94a3b8; font-size: 12px;
@@ -118,8 +146,8 @@
         }
         #modeIndicator.calibration { background: #3b82f6; color: #fff; }
         #modeIndicator.digitization { background: #22c55e; color: #fff; }
-        #modeIndicator.gaussian { background: #f59e0b; color: #1e293b; }
-        #modeIndicator.edit { background: #f59e0b; color: #1e293b; }
+        #modeIndicator.gaussian { background: #d4ff00; color: #1e293b; }
+        #modeIndicator.edit { background: #fff200; color: #1e293b; }
         
         #canvasWrap {
             flex: 1; position: relative; overflow: hidden; cursor: crosshair;
@@ -1053,9 +1081,10 @@ async function buildPages() {
         const page = await pdfDoc.getPage(n);
         const wrap = document.createElement("div"); wrap.className="pdf-page"; wrap.dataset.page=n;
         const cv = document.createElement("canvas");
+        const textLayerDiv = document.createElement("div"); textLayerDiv.className="textLayer";
         const badge = document.createElement("div"); badge.className="pdf-page-num"; badge.textContent="Page "+n;
-        wrap.append(cv,badge); pdfCanvasWrap.appendChild(wrap);
-        pageCanvases.push({wrap,canvas:cv,ctx:cv.getContext("2d"),page});
+        wrap.append(cv,textLayerDiv,badge); pdfCanvasWrap.appendChild(wrap);
+        pageCanvases.push({wrap,canvas:cv,ctx:cv.getContext("2d"),textLayerDiv,page});
     }
 }
 async function renderAllPages() {
@@ -1065,7 +1094,30 @@ async function renderAllPages() {
         if (token!==renderToken) return;
         const vp = pc.page.getViewport({scale:PDF_BASE_SCALE*pdfZoom});
         pc.canvas.width=vp.width; pc.canvas.height=vp.height;
+        if (pc.textLayerDiv) {
+            pc.textLayerDiv.style.width = vp.width + "px";
+            pc.textLayerDiv.style.height = vp.height + "px";
+            pc.textLayerDiv.style.setProperty('--scale-factor', vp.scale.toString());
+        }
         await pc.page.render({canvasContext:pc.ctx,viewport:vp}).promise;
+        if (token!==renderToken) return;
+        try {
+            const textContent = await pc.page.getTextContent();
+            if (token!==renderToken) return;
+            pc.textLayerDiv.innerHTML = "";
+            const renderTask = pdfjsLib.renderTextLayer({
+                textContentSource: textContent,
+                textContent: textContent,
+                container: pc.textLayerDiv,
+                viewport: vp,
+                textDivs: []
+            });
+            if (renderTask && renderTask.promise) {
+                await renderTask.promise;
+            }
+        } catch (err) {
+            console.error("Error rendering text layer:", err);
+        }
     }
     updatePageIndicator();
 }
@@ -1122,6 +1174,11 @@ async function rezoomKeepingCenter(oldZoom) {
         const vp = pc.page.getViewport({scale: PDF_BASE_SCALE * pdfZoom});
         pc.canvas.width = vp.width;
         pc.canvas.height = vp.height;
+        if (pc.textLayerDiv) {
+            pc.textLayerDiv.style.width = vp.width + "px";
+            pc.textLayerDiv.style.height = vp.height + "px";
+            pc.textLayerDiv.style.setProperty('--scale-factor', vp.scale.toString());
+        }
     }
     
     // Adjust scroll immediately to keep center point stable
@@ -1136,17 +1193,24 @@ async function rezoomKeepingCenter(oldZoom) {
 //  PDF VIEWER ENHANCEMENTS: RIGHT-CLICK DRAG + CTRL+SCROLL ZOOM
 // ═══════════════════════════════════════════════════════════════════════
 
-pdfViewer.addEventListener("contextmenu", e => { e.preventDefault(); });
+let pdfPanDragged = false;
+
+pdfViewer.addEventListener("contextmenu", e => {
+    if (pdfPanDragged || snipMode) {
+        e.preventDefault();
+    }
+});
 
 pdfViewer.addEventListener("mousedown", e => {
     if (!pdfDoc) return;
     // Right-click → pan
     if (e.button === 2) {
         pdfPanActive = true;
+        pdfPanDragged = false;
         pdfPanOrigin = {x:e.clientX, y:e.clientY};
         pdfScrollOrigin = {left:pdfViewer.scrollLeft, top:pdfViewer.scrollTop};
         pdfViewer.style.cursor = "grabbing";
-        e.preventDefault(); return;
+        return;
     }
     // Left-click + snip mode
     if (e.button === 0 && snipMode) {
@@ -1161,6 +1225,9 @@ pdfViewer.addEventListener("mousedown", e => {
 
 document.addEventListener("mousemove", e => {
     if (pdfPanActive) {
+        if (Math.hypot(e.clientX - pdfPanOrigin.x, e.clientY - pdfPanOrigin.y) > 4) {
+            pdfPanDragged = true;
+        }
         pdfViewer.scrollLeft = pdfScrollOrigin.left - (e.clientX-pdfPanOrigin.x);
         pdfViewer.scrollTop  = pdfScrollOrigin.top  - (e.clientY-pdfPanOrigin.y);
         return;
@@ -1178,12 +1245,14 @@ document.addEventListener("mouseup", e => {
     if (pdfPanActive && e.button===2) {
         pdfPanActive = false;
         pdfViewer.style.cursor = snipMode ? "crosshair" : (pdfDoc?"grab":"default");
+        setTimeout(() => { pdfPanDragged = false; }, 100);
         return;
     }
     if (snipDragging && e.button===0) {
         snipDragging = false; snipRect.style.display = "none";
         snipMode = false; snipBtn.classList.remove("active"); snipBtn.textContent = "✂ Snip";
         pdfViewer.style.cursor = pdfDoc ? "grab" : "default";
+        pdfViewer.classList.remove("snip-mode");
 
         const sx=parseFloat(snipRect.style.left), sy=parseFloat(snipRect.style.top);
         const sw=parseFloat(snipRect.style.width), sh=parseFloat(snipRect.style.height);
@@ -1236,6 +1305,11 @@ pdfViewer.addEventListener("wheel", async e => {
         const vp = pc.page.getViewport({scale: PDF_BASE_SCALE * pdfZoom});
         pc.canvas.width = vp.width;
         pc.canvas.height = vp.height;
+        if (pc.textLayerDiv) {
+            pc.textLayerDiv.style.width = vp.width + "px";
+            pc.textLayerDiv.style.height = vp.height + "px";
+            pc.textLayerDiv.style.setProperty('--scale-factor', vp.scale.toString());
+        }
     }
     
     // Adjust scroll immediately to keep anchor point under cursor
@@ -1252,6 +1326,7 @@ snipBtn.addEventListener("click", () => {
     snipBtn.classList.toggle("active",snipMode);
     snipBtn.textContent = snipMode ? "✂ Snipping..." : "✂ Snip";
     pdfViewer.style.cursor = snipMode ? "crosshair" : "grab";
+    pdfViewer.classList.toggle("snip-mode", snipMode);
 });
 
 // ═══════════════════════════════════════════════════════════════════════
